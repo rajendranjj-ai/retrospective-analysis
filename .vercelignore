@@ -1,6 +1,0 @@
-# Only ignore these specific items
-node_modules/
-.git/
-.env.local
-.DS_Store
-*.log

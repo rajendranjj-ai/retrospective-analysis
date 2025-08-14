@@ -1,15 +1,6 @@
-# Vercelignore - DO NOT ignore these important files
-!public/
-!public/Retrospectives/
-!public/Retrospectives/*.xlsx
-!public/all_unique_questions.txt
-
-# Only ignore these
+# Only ignore these specific items
 node_modules/
 .git/
 .env.local
 .DS_Store
 *.log
-
-# Keep all Excel files
-!*.xlsx

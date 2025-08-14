@@ -159,9 +159,16 @@ export async function GET() {
       }
     }
     
+    // Calculate totals for the summary
+    const totalResponses = Object.values(totalResponses).reduce((sum, count) => sum + count, 0)
+    const totalQuestions = Object.values(questionCounts).reduce((sum, count) => sum + count, 0)
+    const averageResponseRate = allMonths.length > 0 ? totalResponses / allMonths.length : 0
+    
     const result = {
-      summary,
       totalResponses,
+      totalQuestions,
+      averageResponseRate,
+      summary,
       questionCounts,
       months: allMonths
     }

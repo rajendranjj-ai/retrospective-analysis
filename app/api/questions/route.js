@@ -103,7 +103,11 @@ export async function GET() {
       text: question
     }))
     
-    return NextResponse.json({ questions: numberedQuestions })
+    // Return in the format expected by the frontend
+    return NextResponse.json({ 
+      categories: { 'All Questions': questions },
+      orderedQuestions: questions
+    })
     
   } catch (error) {
     console.error('API Error:', error)

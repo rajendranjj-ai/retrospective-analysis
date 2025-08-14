@@ -101,7 +101,11 @@ export default function Dashboard() {
 
       // Fetch available questions from all releases
       console.log('Fetching all unique questions data...')
-      const questionsResponse = await fetch('http://localhost:4005/api/all-questions')
+      const apiBaseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:4005' 
+        : '';
+      
+      const questionsResponse = await fetch(`${apiBaseUrl}/api/all-questions`)
       if (!questionsResponse.ok) {
         throw new Error(`All questions API failed: ${questionsResponse.status}`)
       }
@@ -114,9 +118,9 @@ export default function Dashboard() {
       setOrderedQuestions(questionsData.questions || [])
       setSections(questionsData.sections || {})
       
-      // Fetch release data for the new chart (directly from Node.js server for correct order)
+      // Fetch release data for the new chart (environment-aware)
       console.log('Fetching releases data...')
-      const releasesResponse = await fetch('http://localhost:4005/api/releases')
+      const releasesResponse = await fetch(`${apiBaseUrl}/api/releases`)
       if (!releasesResponse.ok) {
         throw new Error(`Releases API failed: ${releasesResponse.status}`)
       }
@@ -186,22 +190,27 @@ export default function Dashboard() {
     try {
       setLoading(true)
       
-      // Fetch trends data (directly from Node.js server for correct order)
-      const trendsResponse = await fetch(`http://localhost:4005/api/trends/${encodeURIComponent(question)}`)
+      // Environment-aware API base URL
+      const apiBaseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:4005' 
+        : '';
+      
+      // Fetch trends data (environment-aware)
+      const trendsResponse = await fetch(`${apiBaseUrl}/api/trends/${encodeURIComponent(question)}`)
       if (!trendsResponse.ok) {
         throw new Error(`Trends API failed: ${trendsResponse.status}`)
       }
       const trendsData = await trendsResponse.json()
-      console.log('✅ TRENDS DATA from Node.js server:', trendsData)
+      console.log('✅ TRENDS DATA from server:', trendsData)
       setTrends(trendsData)
       
-      // Fetch director analysis data (directly from Node.js server for correct order)
-      const directorResponse = await fetch(`http://localhost:4005/api/director-analysis/${encodeURIComponent(question)}`)
+      // Fetch director analysis data (environment-aware)
+      const directorResponse = await fetch(`${apiBaseUrl}/api/director-analysis/${encodeURIComponent(question)}`)
       if (!directorResponse.ok) {
         throw new Error(`Director API failed: ${directorResponse.status}`)
       }
       const directorData = await directorResponse.json()
-      console.log('✅ DIRECTOR DATA from Node.js server:', directorData)
+      console.log('✅ DIRECTOR DATA from server:', directorData)
       setDirectorAnalysis(directorData)
       
       setSelectedQuestion(question)

@@ -8,13 +8,20 @@
   },
   "routes": [
     {
-      "src": "/Retrospectives/(.*)",
+      "src": "/public/Retrospectives/(.*)",
       "headers": {
         "cache-control": "s-maxage=31536000, immutable"
       }
     }
   ],
+  "rewrites": [
+    {
+      "source": "/Retrospectives/(.*)",
+      "destination": "/public/Retrospectives/$1"
+    }
+  ],
   "github": {
     "silent": true
-  }
+  },
+  "outputDirectory": ".next"
 }

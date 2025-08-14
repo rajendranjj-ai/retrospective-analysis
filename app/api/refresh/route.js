@@ -24,32 +24,58 @@ function extractMonthOrder(monthName) {
 
 function loadRetrospectiveData() {
   const data = {}
-  const directories = ['.', './Retrospectives']
-
   console.log('Starting to load retrospective data...')
   console.log('Current working directory:', process.cwd())
-  console.log('__dirname:', __dirname)
+  console.log('Environment - NODE_ENV:', process.env.NODE_ENV)
+  console.log('Environment - VERCEL:', process.env.VERCEL ? 'YES' : 'NO')
 
-  // Use different path resolution based on environment
-  let projectRoot
+  // Enhanced path resolution for different environments
+  let projectRoot = process.cwd()
+  let directories = []
+  
   if (process.env.VERCEL) {
-    // On Vercel, files are in the function's working directory
-    projectRoot = process.cwd()
+    // Vercel environment - try multiple possible locations
+    directories = [
+      './Retrospectives',
+      './public/Retrospectives', 
+      'Retrospectives',
+      'public/Retrospectives'
+    ]
+    console.log('🔍 Vercel environment detected - trying multiple file locations')
   } else {
-    // Local development - use process.cwd() which points to project root
-    projectRoot = process.cwd()
+    // Local development
+    directories = ['.', './Retrospectives']
+    console.log('🔍 Local environment detected')
   }
+  
   console.log('Project root:', projectRoot)
+  console.log('Directories to check:', directories)
 
   for (const dir of directories) {
     try {
       const fullPath = path.join(projectRoot, dir)
       console.log(`Checking directory: ${fullPath}`)
-      const files = fs.readdirSync(fullPath)
-      console.log(`Files in ${dir}:`, files)
       
-      const excelFiles = files.filter(file => file.endsWith('.xlsx') && file.includes('Release Retrospective'))
+      // Check if directory exists
+      if (!fs.existsSync(fullPath)) {
+        console.log(`Directory ${fullPath} does not exist, skipping...`)
+        continue
+      }
+      
+      const files = fs.readdirSync(fullPath)
+      console.log(`Files in ${dir}:`, files.length > 0 ? files.slice(0, 5) : 'No files found')
+      
+      const excelFiles = files.filter(file => 
+        file.endsWith('.xlsx') && 
+        file.includes('Release Retrospective') &&
+        !file.includes('~$') // Exclude temporary Excel files
+      )
       console.log(`Excel files found in ${dir}:`, excelFiles)
+      
+      if (excelFiles.length === 0) {
+        console.log(`No Excel files found in ${dir}, continuing to next directory...`)
+        continue
+      }
       
       // Sort files chronologically before processing
       const sortedFiles = excelFiles.sort((a, b) => {
@@ -75,6 +101,12 @@ function loadRetrospectiveData() {
         console.log(`File path: ${filePath}`)
         
         try {
+          // Check file exists and is readable
+          if (!fs.existsSync(filePath)) {
+            console.log(`File ${filePath} does not exist, skipping...`)
+            continue
+          }
+          
           const workbook = XLSX.readFile(filePath)
           const sheetName = workbook.SheetNames[0]
           const worksheet = workbook.Sheets[sheetName]
@@ -86,17 +118,31 @@ function loadRetrospectiveData() {
           const year = parts[1]
           const monthKey = year ? `${month} ${year}` : month
           data[monthKey] = jsonData
-          console.log(`Loaded ${monthKey}: ${jsonData.length} responses from ${file}`)
+          console.log(`✅ Loaded ${monthKey}: ${jsonData.length} responses from ${file}`)
           
         } catch (error) {
-          console.log(`Error loading ${file}:`, error.message)
+          console.log(`❌ Error loading ${file}:`, error.message)
+          if (process.env.VERCEL) {
+            console.log(`Vercel file access error - this may be expected in serverless environment`)
+          }
         }
       }
+      
+      // If we found files in this directory, we can break (prioritize first working directory)
+      if (Object.keys(data).length > 0) {
+        console.log(`✅ Successfully loaded data from ${dir}, using this directory`)
+        break
+      }
+      
     } catch (error) {
-      console.log(`Directory ${dir} not accessible, skipping...`)
+      console.log(`❌ Directory ${dir} error:`, error.message)
+      if (process.env.VERCEL) {
+        console.log(`Vercel directory access error - trying next location`)
+      }
     }
   }
 
+  console.log(`📊 Final data loading result: ${Object.keys(data).length} releases loaded`)
   return data
 }
 
@@ -104,41 +150,33 @@ export async function POST() {
   try {
     console.log('🔄 REFRESH DATA API CALLED - Performing complete data refresh...')
     console.log('📍 Environment:', process.env.NODE_ENV || 'production')
+    console.log('📍 Vercel:', process.env.VERCEL ? 'YES' : 'NO')
     
     // Step 1: Clear ALL cached data first
     console.log('🗑️ Clearing all stored metrics and cached data...')
     clearGlobalCache()
     
-    // Step 2: Re-check files in retrospectives folder
-    console.log('📁 Re-scanning Retrospectives folder for files...')
-    
-    // Step 3: Try to refresh Node.js server data first (for development)
-    let serverRefreshed = false
-    let serverSummary = null
-    
+    // Step 2: For development, try Node.js server first
     if (process.env.NODE_ENV === 'development') {
       try {
         console.log('🔄 Attempting to refresh Node.js server data...')
+        const controller = new AbortController()
+        const timeoutId = setTimeout(() => controller.abort(), 8000)
+        
         const serverResponse = await fetch('http://localhost:4005/api/refresh', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          timeout: 10000
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal
         })
+        
+        clearTimeout(timeoutId)
         
         if (serverResponse.ok) {
           const serverData = await serverResponse.json()
           console.log('✅ Successfully refreshed Node.js server data')
-          serverRefreshed = true
-          serverSummary = serverData.summary
           
-          // In development, prefer server data and return success immediately
-          console.log(`📊 Server loaded: ${serverSummary.filesLoaded} files, ${serverSummary.totalResponses} responses`)
-          
-          // Return successful refresh based on Node.js server data
           const summary = {
-            ...serverSummary,
+            ...serverData.summary,
             cacheCleared: true,
             serverRefreshed: true,
             source: 'nodejs-server'
@@ -146,25 +184,43 @@ export async function POST() {
           
           console.log(`✅ COMPLETE DATA REFRESH SUCCESSFUL (via Node.js server)`)
           console.log(`📊 Final results: ${summary.filesLoaded} files, ${summary.totalResponses} total responses`)
-          console.log(`🔄 Cache cleared: YES | Server refreshed: YES`)
           
           return NextResponse.json({
             success: true,
             message: 'All stored metrics cleared and data refreshed successfully',
             summary: summary
           })
-        } else {
-          console.log(`⚠️ Server response not OK: ${serverResponse.status}`)
         }
       } catch (error) {
         console.log('⚠️ Could not refresh server data, proceeding with Next.js only refresh:', error.message)
       }
     }
 
-    // Step 4: Load fresh data directly and update Next.js cache
-    console.log('🔄 Loading fresh data directly for Next.js cache...')
+    // Step 3: Load fresh data directly for Vercel/production
+    console.log('🔄 Loading fresh data directly...')
     const startTime = Date.now()
-    const data = loadRetrospectiveData()
+    
+    // Enhanced error handling for Vercel
+    let data
+    try {
+      data = loadRetrospectiveData()
+    } catch (fileError) {
+      console.error('❌ File loading error:', fileError.message)
+      
+      // For Vercel, provide specific guidance
+      if (process.env.VERCEL) {
+        return NextResponse.json({
+          error: 'File access failed in Vercel environment',
+          details: 'Excel files may not be accessible in serverless environment',
+          suggestion: 'Ensure files are in public directory or use external storage',
+          cacheCleared: true,
+          vercelEnvironment: true
+        }, { status: 500 })
+      }
+      
+      throw fileError
+    }
+    
     const loadTime = Date.now() - startTime
     
     console.log(`📁 File scan results: Found ${Object.keys(data).length} release files`)
@@ -174,61 +230,65 @@ export async function POST() {
     
     if (Object.keys(data).length === 0) {
       console.log('⚠️ No files found - check Retrospectives folder')
-      return NextResponse.json({ 
-        error: 'No retrospective files found after refresh - please check the Retrospectives folder',
+      
+      // Enhanced error response for Vercel
+      const errorResponse = {
+        error: 'No retrospective files found after refresh',
         loadTime: loadTime,
         cacheCleared: true,
-        serverRefreshed: serverRefreshed,
-        folderChecked: true
-      }, { status: 404 })
+        vercelEnvironment: !!process.env.VERCEL,
+        suggestion: process.env.VERCEL 
+          ? 'In Vercel, ensure Excel files are in the deployment or use external storage'
+          : 'Check the Retrospectives folder exists and contains Excel files'
+      }
+      
+      return NextResponse.json(errorResponse, { status: 404 })
     }
     
-    // Step 5: Update Next.js cache with fresh data
-    console.log('💾 Updating Next.js cache with fresh data...')
+    // Step 4: Update cache with fresh data
+    console.log('💾 Updating cache with fresh data...')
     setCachedData(data)
     
-    // Step 6: Prepare comprehensive summary
-    const nextJsSummary = {
+    // Step 5: Prepare summary
+    const summary = {
       filesLoaded: Object.keys(data).length,
       totalResponses: Object.values(data).reduce((sum, monthData) => sum + monthData.length, 0),
       loadTime: loadTime,
       releases: Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b)),
       refreshedAt: new Date().toISOString(),
       cacheCleared: true,
-      serverRefreshed: serverRefreshed,
+      serverRefreshed: false,
+      source: process.env.VERCEL ? 'vercel-serverless' : 'nextjs-direct',
+      vercelEnvironment: !!process.env.VERCEL,
       cacheStats: getCacheStats()
     }
     
-    // Use server summary if available, otherwise Next.js summary
-    const finalSummary = serverRefreshed && serverSummary ? {
-      ...serverSummary,
-      cacheCleared: true,
-      serverRefreshed: true,
-      nextJsRefreshed: true,
-      source: 'hybrid'
-    } : {
-      ...nextJsSummary,
-      source: 'nextjs-direct'
-    }
-    
     console.log(`✅ COMPLETE DATA REFRESH SUCCESSFUL`)
-    console.log(`📊 Final results: ${finalSummary.filesLoaded} files, ${finalSummary.totalResponses} total responses`)
-    console.log(`🔄 Cache cleared: YES | Server refreshed: ${serverRefreshed ? 'YES' : 'NO'}`)
+    console.log(`📊 Final results: ${summary.filesLoaded} files, ${summary.totalResponses} total responses`)
+    console.log(`🔄 Cache cleared: YES | Environment: ${summary.source}`)
     
     return NextResponse.json({
       success: true,
       message: 'All stored metrics cleared and data refreshed successfully',
-      summary: finalSummary
+      summary: summary
     })
     
   } catch (error) {
     console.error('❌ Error refreshing data:', error)
-    // Clear cache on error to ensure no stale data
     clearGlobalCache()
-    return NextResponse.json({
+    
+    // Enhanced error response with Vercel-specific guidance
+    const errorResponse = {
       error: 'Failed to refresh data',
       details: error.message,
-      cacheCleared: true
-    }, { status: 500 })
+      cacheCleared: true,
+      vercelEnvironment: !!process.env.VERCEL
+    }
+    
+    if (process.env.VERCEL) {
+      errorResponse.vercelGuidance = 'Vercel serverless functions have file system limitations. Consider using external storage or database for Excel files.'
+    }
+    
+    return NextResponse.json(errorResponse, { status: 500 })
   }
 }

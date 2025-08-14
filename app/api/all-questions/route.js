@@ -28,13 +28,27 @@ function loadAllQuestions() {
   const questionsByRelease = {}
   
   const projectRoot = process.cwd()
-  const directories = ['.', 'Retrospectives'] // Use relative paths like other working endpoints
   
-  // Debug path information
-  const retroPath = path.join(projectRoot, 'Retrospectives')
+  // Enhanced directory resolution for Vercel and local environments
+  let directories = []
+  
+  if (process.env.VERCEL) {
+    // Vercel environment - try multiple possible locations
+    directories = [
+      './Retrospectives',
+      './public/Retrospectives', 
+      'Retrospectives',
+      'public/Retrospectives'
+    ]
+    console.log('🔍 Vercel environment detected - trying multiple file locations for questions extraction')
+  } else {
+    // Local development
+    directories = ['.', './Retrospectives']
+    console.log('🔍 Local environment detected for questions extraction')
+  }
+  
   console.log('Project root:', projectRoot)
-  console.log('Retrospectives path:', retroPath)
-  console.log('Retrospectives exists:', fs.existsSync(retroPath))
+  console.log('Directories to check:', directories)
   
   for (const dir of directories) {
     try {
@@ -49,11 +63,16 @@ function loadAllQuestions() {
       const files = fs.readdirSync(fullPath)
       const excelFiles = files.filter(file => 
         file.endsWith('.xlsx') && 
-        file.includes('Retrospective') && 
+        file.includes('Release Retrospective') && 
         !file.includes('~$') // Exclude temporary Excel files
       )
       
       console.log(`📁 Found ${excelFiles.length} Excel files in ${dir}:`, excelFiles)
+      
+      if (excelFiles.length === 0) {
+        console.log(`No Excel files found in ${dir}, continuing to next directory...`)
+        continue
+      }
       
       // Sort files chronologically
       const sortedFiles = excelFiles.sort((a, b) => {
@@ -68,10 +87,15 @@ function loadAllQuestions() {
         return extractFileOrder(a) - extractFileOrder(b)
       })
       
-              for (const file of sortedFiles) {
-          try {
-            const filePath = path.join(fullPath, file)
+      for (const file of sortedFiles) {
+        try {
+          const filePath = path.join(fullPath, file)
           console.log(`📄 Processing file: ${file}`)
+          
+          if (!fs.existsSync(filePath)) {
+            console.log(`File ${filePath} does not exist, skipping...`)
+            continue
+          }
           
           const workbook = XLSX.readFile(filePath)
           const sheetName = workbook.SheetNames[0]
@@ -115,19 +139,76 @@ function loadAllQuestions() {
             console.log(`✅ Extracted ${releaseQuestions.length} questions from ${releaseKey}`)
           }
         } catch (fileError) {
-          console.error(`Error processing file ${file}:`, fileError.message)
+          console.error(`❌ Error processing file ${file}:`, fileError.message)
+          if (process.env.VERCEL) {
+            console.log(`Vercel file access error for ${file} - this may be expected in serverless environment`)
+          }
         }
       }
+      
+      // If we found files in this directory, break (prioritize first working directory)
+      if (allQuestions.length > 0) {
+        console.log(`✅ Successfully extracted questions from ${dir}, using this directory`)
+        break
+      }
+      
     } catch (error) {
-      console.error(`Error reading directory ${dir}:`, error.message)
+      console.error(`❌ Error reading directory ${dir}:`, error.message)
+      if (process.env.VERCEL) {
+        console.log(`Vercel directory access error for ${dir} - trying next location`)
+      }
     }
   }
   
+  // Create basic sections for Vercel environment (when we don't have the curated file)
+  const sections = createBasicSections(allQuestions)
+  
   return {
     allQuestions: allQuestions, // Already an array in encounter order
+    sections: sections,
     questionsByRelease,
     totalUniqueQuestions: allQuestions.length
   }
+}
+
+// Helper function to create basic sections from questions when we don't have the curated file
+function createBasicSections(questions) {
+  const sections = {
+    'Release Questionnaire': [],
+    'Sprint Retrospective': [],
+    'Release Review': [],
+    'Cursor adoption': [],
+    'AI Efficiency': [],
+    'others': []
+  }
+  
+  // Categorize questions based on keywords
+  questions.forEach(question => {
+    const lowerQuestion = question.toLowerCase()
+    
+    if (lowerQuestion.includes('ai') || lowerQuestion.includes('artificial intelligence') || lowerQuestion.includes('productivity')) {
+      sections['AI Efficiency'].push(question)
+    } else if (lowerQuestion.includes('cursor') || lowerQuestion.includes('copilot') || lowerQuestion.includes('ide')) {
+      sections['Cursor adoption'].push(question)
+    } else if (lowerQuestion.includes('sprint retrospective') || lowerQuestion.includes('action item')) {
+      sections['Sprint Retrospective'].push(question)
+    } else if (lowerQuestion.includes('release overall') || lowerQuestion.includes('release planning') || lowerQuestion.includes('directly involved')) {
+      sections['Release Questionnaire'].push(question)
+    } else if (lowerQuestion.includes('release') || lowerQuestion.includes('deliverable') || lowerQuestion.includes('timeline')) {
+      sections['Release Review'].push(question)
+    } else {
+      sections['others'].push(question)
+    }
+  })
+  
+  // Remove empty sections
+  Object.keys(sections).forEach(key => {
+    if (sections[key].length === 0) {
+      delete sections[key]
+    }
+  })
+  
+  return sections
 }
 
 export async function GET() {
@@ -137,30 +218,71 @@ export async function GET() {
     const startTime = Date.now()
     
     // First, try to read from the predefined all_unique_questions.txt file
-    const questionsFilePath = path.join(process.cwd(), 'all_unique_questions.txt')
+    let questionsFilePath
     
-    if (fs.existsSync(questionsFilePath)) {
-      console.log('📖 Reading questions from all_unique_questions.txt file...')
-      const fileContent = fs.readFileSync(questionsFilePath, 'utf8')
-      const questionsFromFile = fileContent
-        .split('\n')
-        .map(line => line.trim())
-        .filter(line => line.length > 0)
+    if (process.env.VERCEL) {
+      // In Vercel, try public directory first
+      questionsFilePath = path.join(process.cwd(), 'public', 'all_unique_questions.txt')
+    } else {
+      // Local development
+      questionsFilePath = path.join(process.cwd(), 'all_unique_questions.txt')
+    }
+    
+    // Also try backup location for Vercel
+    const backupFilePath = process.env.VERCEL ? path.join(process.cwd(), 'all_unique_questions.txt') : null
+    
+    if (fs.existsSync(questionsFilePath) || (backupFilePath && fs.existsSync(backupFilePath))) {
+      const fileToRead = fs.existsSync(questionsFilePath) ? questionsFilePath : backupFilePath
       
-      const loadTime = Date.now() - startTime
-      
-      console.log(`📊 Questions loaded from file: ${questionsFromFile.length} questions in ${loadTime}ms`)
-      
-      return NextResponse.json({
-        success: true,
-        questions: questionsFromFile,
-        metadata: {
-          totalUniqueQuestions: questionsFromFile.length,
-          source: 'all_unique_questions.txt',
-          loadTime: loadTime,
-          extractedAt: new Date().toISOString()
-        }
-      })
+      console.log(`📖 Reading questions from ${fileToRead}...`)
+      try {
+        const fileContent = fs.readFileSync(fileToRead, 'utf8')
+          const sections = {}
+          let currentSection = 'General'
+          
+          const lines = fileContent.split('\n').map(line => line.trim())
+          
+          for (const line of lines) {
+            if (line.startsWith('Section Name:') || line.startsWith('Section:')) {
+              currentSection = line.replace('Section Name:', '').replace('Section:', '').trim()
+              sections[currentSection] = []
+            } else if (line.length > 0) {
+              if (!sections[currentSection]) {
+                sections[currentSection] = []
+              }
+              sections[currentSection].push(line)
+            }
+          }
+          
+          // Collect all questions in order
+          const allQuestions = []
+          for (const sectionQuestions of Object.values(sections)) {
+            allQuestions.push(...sectionQuestions)
+          }
+          
+          const loadTime = Date.now() - startTime
+          
+          console.log(`📊 Questions loaded from file: ${allQuestions.length} questions across ${Object.keys(sections).length} sections in ${loadTime}ms`)
+          console.log(`📋 Sections found: ${Object.keys(sections).join(', ')}`)
+          
+          return NextResponse.json({
+            success: true,
+            questions: allQuestions,
+            sections: sections,
+            metadata: {
+              totalUniqueQuestions: allQuestions.length,
+              sectionNames: Object.keys(sections),
+              sectionCount: Object.keys(sections).length,
+              source: 'all_unique_questions.txt',
+              loadTime: loadTime,
+              extractedAt: new Date().toISOString()
+            }
+          })
+      } catch (fileError) {
+        console.log('⚠️ Error reading all_unique_questions.txt:', fileError.message)
+      }
+    } else {
+      console.log('🔍 No questions file found - extracting from Excel directly')
     }
     
     // Fallback: Extract from Excel files if txt file doesn't exist
@@ -179,15 +301,21 @@ export async function GET() {
       })
     }
     
+    console.log(`📋 Sections created: ${Object.keys(result.sections).join(', ')}`)
+    
     return NextResponse.json({
       success: true,
       questions: result.allQuestions,
+      sections: result.sections,
       metadata: {
         totalUniqueQuestions: result.totalUniqueQuestions,
+        sectionNames: Object.keys(result.sections),
+        sectionCount: Object.keys(result.sections).length,
         releaseCount: Object.keys(result.questionsByRelease).length,
         questionsByRelease: result.questionsByRelease,
         loadTime: loadTime,
-        source: 'Excel files',
+        source: process.env.VERCEL ? 'Excel files (Vercel)' : 'Excel files (local)',
+        vercelEnvironment: !!process.env.VERCEL,
         extractedAt: new Date().toISOString()
       }
     })
@@ -196,7 +324,8 @@ export async function GET() {
     console.error('❌ Error extracting questions:', error)
     return NextResponse.json({ 
       error: error.message,
-      success: false 
+      success: false,
+      vercelEnvironment: !!process.env.VERCEL
     }, { status: 500 })
   }
 }

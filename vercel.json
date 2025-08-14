@@ -3,7 +3,7 @@
   "framework": "nextjs",
   "functions": {
     "app/api/**/*.js": {
-      "maxDuration": 30
+      "maxDuration": 60
     }
   },
   "routes": [
@@ -13,5 +13,8 @@
         "cache-control": "s-maxage=31536000, immutable"
       }
     }
-  ]
+  ],
+  "github": {
+    "silent": true
+  }
 }

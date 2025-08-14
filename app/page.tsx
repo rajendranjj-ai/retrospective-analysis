@@ -184,7 +184,7 @@ export default function Dashboard() {
           <MetricCard
             icon={BarChart3}
             title="Total Releases"
-            value={releaseData.length.toString()}
+            value={(releaseData?.length || 0).toString()}
             color="blue"
           />
         </div>
@@ -194,9 +194,10 @@ export default function Dashboard() {
         {/* Release Responses Chart */}
         <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">Total Responses by Release</h2>
-          <div className="h-80">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={releaseData}>
+          {releaseData && releaseData.length > 0 ? (
+            <div className="h-80">
+              <ResponsiveContainer width="100%" height="100%">
+                <LineChart data={releaseData}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="month" 
@@ -274,7 +275,7 @@ export default function Dashboard() {
                     position="bottom" 
                     formatter={(value: number, entry: any) => {
                       // Find the corresponding data point to get responses count
-                      const dataPoint = releaseData.find((item: any) => item.questions === value);
+                      const dataPoint = (releaseData || []).find((item: any) => item.questions === value);
                       if (dataPoint) {
                         return `${dataPoint.responses}(Q:${value})`;
                       }
@@ -290,6 +291,11 @@ export default function Dashboard() {
               </LineChart>
             </ResponsiveContainer>
           </div>
+          ) : (
+            <div className="h-80 flex items-center justify-center">
+              <p className="text-gray-500">Loading release data...</p>
+            </div>
+          )}
         </div>
 
         {/* Question Selection */}

@@ -19,7 +19,7 @@ function loadRetrospectiveData() {
   
   if (process.env.VERCEL) {
     // Vercel environment: try multiple paths
-    directories = ['./Retrospectives', './public/Retrospectives', 'Retrospectives', 'public/Retrospectives', './public', 'public', '.']
+    directories = ['public/Retrospectives', './public/Retrospectives', 'Retrospectives', './Retrospectives']
     console.log('🔍 VERCEL DEBUGGING: Using Vercel-optimized directory search order')
   } else {
     // Local development

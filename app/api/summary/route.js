@@ -19,14 +19,12 @@ function loadRetrospectiveData() {
   let directories = []
   
   if (process.env.VERCEL) {
-    // Vercel environment - try multiple possible locations
+    // Vercel environment - prioritize public directory
     directories = [
-      './public/Retrospectives',
-      './Retrospectives',
       'public/Retrospectives',
+      './public/Retrospectives', 
       'Retrospectives',
-      './public',
-      'public'
+      './Retrospectives'
     ]
     console.log('🔍 VERCEL DEBUGGING: Vercel environment detected - trying multiple file locations')
   } else {

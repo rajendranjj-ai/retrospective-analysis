@@ -1,0 +1,71 @@
+Section Name: Release Questionnaire
+Are you directly involved in the Release Deliverables for current release items or items planned and in progress for future releases?
+How would you rate Release Overall (Individual Perspective) ?
+How would you rate the release planning  in comparison to previous release plannings? (1-Poor, 5- Improved)
+How well were you as an individual aware of your teams commitments and scope of work prior to release implementation start ? (1-Not Aware, 5- Aware)
+What was your involvement in Release planning and the selection of commitments?  (1-Not Involved, 5-  Fully Involved)
+Were you as an individual aware of the Release timelines and your tasks in hand for the Release ? (1-Somewhat Aware, 5- Fully Aware)
+Detailed Epic Breakdown with estimates and scrum team ownership were done for your trackers parent epic prior to Release Implementation Initiation.
+How confident were you in terms of your teams commitments and deliverables? (1-Not Confident, 5- Full Confidence)
+How would you rate effectiveness the Sprint Planning Meetings ? (1-Not Effective, 5- Effective)
+Individual items efforts estimate for completion of the task is done by whom ?
+How would you rate effectiveness of the Daily Standup connect to understand and analyse your tasks in hand ? (1-Not Effective, 5- Effective)
+How would you rate effectiveness of the Sprint Closure / review meetings ? (1-Not Effective, 5- Effective)
+Was Sprint retrospective Conducted for your Team at the end of each Sprint
+
+Section: Sprint Retrospective
+Sprint Retrospective Effectiveness
+Were the action item from the Sprint retrospectives addressed during this release?
+What was the action item and how was it resolved during the release?
+
+
+Section Name: Release Review
+Do you as an individual get sufficient opportunity to raise risk or concerns during agile ceremonies?
+Do you get opportunity to learn new things in accordance to your role release over release?
+What percentage of your capacity in the sprint was reserved for Items such as CS Support Bugs/Requests which cannot be estimated but as a team you reserve some bandwidth, as per history your are aware of such requests and your team reserves capacity for it ?
+Is your reserved capacity for the Historical support activities such as CS Bugs/Support tickets and others, sufficient during the release.
+How much Adhoc requests (Request for which no bandwidth was reserved during Release/Sprint Planning) were received during implementation Phase.
+How was your available capacity utilised during the Release i.e. your workload. (1-Under Utilisation, 5- Over Utilisation)
+Do you have sufficient details available on Jira to successfully and independently complete your assigned tasks
+Was the Release Coordination Group initiated with representatives from each directors org, helpful and more efficient in managing the Release checkpoints and ensuring the key asks were routed better to the respective team/people?
+How well were dependencies managed in the Release.
+Check the Release Ceremony where there is need to spend more efforts to make the release more effective.
+Check the Sprint Ceremony where there is need to spend more efforts to make the release more effective.
+What is the top improvement area in the below list you would suggest to improve for a smoother release?
+What do we need to improve in Release Implementation
+Anything that you would like to call out which improved in this release as compared to the previous releases.
+What is the most probable reason that deviates the planned timelines?
+Applicable only for pure DEV or QA Resources - What percent of your available capacity is impacted by process changes and new processes enablement on regular tasks not the other cleanup activities from previous releases (Not Applicable to EM's, SM's & Other Folks responsible for process streamlining)
+Any other thought you would like to share related to the releases.
+In Your individual opinion are we considering the release Delivery Timelines and milestones while we are planning and delivering our assigned tasks
+Do you have any suggestion for improving and streamlining the release further?
+Individual items efforts estimate for completion of the task is done by whom ? (Desired state is by scrum team)
+What percentage of your capacity in the sprint was reserved for Items such as CS Support Bugs/Requests which cannot be estimated but as a team you reserve some bandwidth, as per history you are aware of such requests and your team reserves capacity for it ?(individual capacity reserved)
+How much Adhoc requests (Request for which no bandwidth was reserved during Release/Sprint Planning) were received post sprint planning.
+What was your engagement area during this release while not associated with the release deliverables?
+Do you have sufficient details available on Jira to successfully and independently complete your assigned tasks(details like description, acceptance criteria and timeline)
+
+
+Section Name: Cursor adoption
+
+Which IDE would you prefer to continue to work with (Cursor vs Copilot) ? Why ?
+What types of tasks do you use Cursor, Copilot for ?
+How much Productivity boost have you experienced with Cursor ?
+Share an interesting use case where Cursor helped you
+Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ?
+If yes, where do you use it ?
+Any feedback on Cursor Usage ?
+Which mode do you prefer using in Cursor ?
+Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?
+Please highlight where the support can be further improved.
+What are the key points for your preference as Copilot as IDE ?
+
+Section Name: AI Efficiency
+Are you using AI for efficiency improvement in your day to day Dev/QA activity?
+With the usage of AI what has been increase in your productivity?
+Are you getting the required support and guidance within Engineering to explore and increase efficiency using AI?
+Which Tool are you using for your AI tasks
+With the usage of AI what has been increase in your productivity as compared to previous release?
+
+Section Name: others
+Any Suggestions for Jira enhancements?

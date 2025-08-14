@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import { getCachedData, setCachedData, getCacheStats } from '../cache.js';
 
 // Load retrospective data from the current directory
 function loadRetrospectiveData() {
@@ -20,9 +21,30 @@ function loadRetrospectiveData() {
         !file.includes('~$') // Exclude temporary Excel files
       )
       
-      for (const file of excelFiles) {
+      // Sort files chronologically before processing
+      const sortedFiles = excelFiles.sort((a, b) => {
+        const extractFileOrder = (filename) => {
+          const parts = filename.split(' ')
+          const month = parts[0]
+          const year = parts[1] ? parseInt(parts[1]) : 2024
+          const monthMapping = {
+            'January': 1, 'February': 2, 'March': 3, 'April': 4,
+            'May': 5, 'June': 6, 'July': 7, 'August': 8,
+            'September': 9, 'October': 10, 'November': 11, 'December': 12
+          }
+          const monthOrder = monthMapping[month] || 13
+          return year * 100 + monthOrder
+        }
+        return extractFileOrder(a) - extractFileOrder(b)
+      })
+      
+      for (const file of sortedFiles) {
         try {
-          const month = file.split(' ')[0]
+          // Extract month and year to handle multiple files for same month
+          const parts = file.split(' ')
+          const month = parts[0]
+          const year = parts[1]
+          const monthKey = year ? `${month} ${year}` : month
           const filePath = path.join(process.cwd(), dir, file)
           const workbook = XLSX.readFile(filePath)
           const sheetName = workbook.SheetNames[0]
@@ -54,11 +76,11 @@ function loadRetrospectiveData() {
             jsonData = XLSX.utils.sheet_to_json(worksheet)
           }
           
-          // If month already exists, append data (in case of duplicates)
-          if (data[month]) {
-            data[month] = [...data[month], ...jsonData]
+          // If monthKey already exists, append data (in case of duplicates)
+          if (data[monthKey]) {
+            data[monthKey] = [...data[monthKey], ...jsonData]
           } else {
-            data[month] = jsonData
+            data[monthKey] = jsonData
           }
         } catch (error) {
           console.error(`Error loading ${file}:`, error.message)
@@ -80,12 +102,48 @@ function extractMonthOrder(monthName) {
     'May': 5, 'June': 6, 'July': 7, 'August': 8,
     'September': 9, 'October': 10, 'November': 11, 'December': 12
   };
-  return monthMapping[monthName] || 13;
+  
+  // Handle "Month Year" format
+  const parts = monthName.split(' ')
+  const month = parts[0]
+  const year = parts[1] ? parseInt(parts[1]) : 2024 // Default year for backward compatibility
+  
+  const monthOrder = monthMapping[month] || 13
+  
+  // Create a sortable number: YYYYMM format
+  return year * 100 + monthOrder
 }
 
 export async function GET() {
   try {
-    const data = loadRetrospectiveData()
+    // Step 1: Check cache first  
+    let data = getCachedData()
+    
+    if (!data) {
+      // Step 2: Try server first only in development
+      if (process.env.NODE_ENV === 'development') {
+        try {
+          const serverResponse = await fetch('http://localhost:4005/api/releases')
+          if (serverResponse.ok) {
+            const serverData = await serverResponse.json()
+            console.log('Successfully got releases data from server')
+            return NextResponse.json(serverData)
+          }
+        } catch (error) {
+          console.log('Could not fetch releases from server:', error.message)
+        }
+      }
+      
+      // Step 3: Load data directly if not cached
+      console.log('📋 Loading releases data directly (not cached)...')
+      data = loadRetrospectiveData()
+      
+      if (Object.keys(data).length > 0) {
+        setCachedData(data)
+      }
+    } else {
+      console.log('📋 Using cached releases data')
+    }
     
     if (!data || Object.keys(data).length === 0) {
       console.log('Releases API: No data loaded, returning fallback data')
@@ -98,13 +156,19 @@ export async function GET() {
     // Get all months and sort them
     const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
     
-    // Create releases array with response counts
-    const releases = allMonths.map(month => ({
-      month,
-      responses: data[month] ? data[month].length : 0
-    }))
+    // Create releases array with response counts and question counts (to match Node.js server format)
+    const releases = allMonths.map(month => {
+      const monthData = data[month] || []
+      const questionCount = monthData.length > 0 ? Object.keys(monthData[0]).length : 0
+      
+      return {
+        month: month, // Keep full month and year (e.g., "August 2025")
+        responses: monthData.length,
+        questions: questionCount
+      }
+    })
     
-    return NextResponse.json({ releases })
+    return NextResponse.json(releases)
     
   } catch (error) {
     console.error('API Error:', error)

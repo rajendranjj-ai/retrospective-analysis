@@ -3,12 +3,29 @@
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
 
 interface TrendChartProps {
-  trends: { [month: string]: { [answer: string]: number } }
+  trends: { [month: string]: { [answer: string]: number } } | null
   questionTitle: string
   responseCounts?: { [month: string]: number }
 }
 
 export default function TrendChart({ trends, questionTitle, responseCounts }: TrendChartProps) {
+  // Early return if trends data is not available
+  if (!trends || Object.keys(trends).length === 0) {
+    return (
+      <div className="bg-white rounded-lg shadow p-6">
+        <h3 className="text-lg font-semibold text-gray-900 mb-4">
+          Trend Analysis: {questionTitle}
+        </h3>
+        <div className="flex items-center justify-center h-64 text-gray-500">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-300 mx-auto mb-2"></div>
+            <p>Loading trend data...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   // Get all unique answer options first
   const allAnswers = new Set<string>()
   Object.values(trends).forEach(monthData => {
@@ -16,8 +33,21 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
   })
 
   // Convert trends data to chart format with both percentage and count
-  // Ensure all months are present with their actual data
-  const allMonths = ['August', 'September', 'November', 'January', 'March', 'April', 'May', 'July']
+  // Get all months from trends data and sort them chronologically
+  const extractMonthOrder = (monthName: string): number => {
+    const monthMap: { [key: string]: number } = {
+      'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
+      'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
+    };
+    
+    const parts = monthName.split(' ');
+    const month = parts[0];
+    const year = parseInt(parts[1]) || 2024;
+    
+    return year * 100 + (monthMap[month] || 0);
+  };
+  
+  const allMonths = Object.keys(trends).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
   
   const completeChartData = allMonths.map(month => {
     const monthData = trends[month]
@@ -32,8 +62,8 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
     
     const monthDataWithCounts: any = { month }
     
-    // Use response counts from backend if available, otherwise calculate
-    const totalResponses = responseCounts?.[month] || Object.values(monthData).reduce((sum, percentage) => sum + percentage, 0)
+    // Use response counts from backend if available, otherwise calculate from percentage totals
+    const totalResponses = responseCounts?.[month] || 100 // Default to 100 if not available since percentages should sum to 100
     
     // Add percentage and count data for answers that exist in this month
     Object.entries(monthData).forEach(([answer, percentage]) => {
@@ -117,7 +147,7 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
           <YAxis tick={{ fontSize: 12 }} />
           <Tooltip 
             formatter={(value: number, name: string) => [
-              `${value}%`,
+              `${value.toFixed(2)}%`,
               name
             ]}
             labelFormatter={(label: string) => formatMonthLabel(label)}
@@ -136,7 +166,7 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
                       
                       return (
                         <p key={index} className="text-blue-600">
-                          {answer}: {percentage}% ({count})
+                          {answer}: {percentage.toFixed(2)}% ({count})
                         </p>
                       )
                     })}
@@ -160,15 +190,8 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
               <LabelList 
                 dataKey={answer} 
                 position="top" 
-                formatter={(value: number) => value === 0 ? '' : `${value}%`}
+                formatter={(value: number) => value === 0 ? '' : `${value.toFixed(2)}%`}
                 style={{ fontSize: '12px', fill: '#1F2937', fontWeight: 'bold' }}
-                offset={15}
-              />
-              <LabelList 
-                dataKey={answer} 
-                position="bottom" 
-                formatter={(value: number) => value === 0 ? '' : answer}
-                style={{ fontSize: '11px', fill: colors[index % colors.length], fontWeight: '500' }}
                 offset={15}
               />
             </Line>

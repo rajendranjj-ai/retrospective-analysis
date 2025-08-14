@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
 
@@ -20,9 +20,30 @@ function loadRetrospectiveData() {
         !file.includes('~$') // Exclude temporary Excel files
       )
       
-      for (const file of excelFiles) {
+      // Sort files chronologically before processing
+      const sortedFiles = excelFiles.sort((a, b) => {
+        const extractFileOrder = (filename) => {
+          const parts = filename.split(' ')
+          const month = parts[0]
+          const year = parts[1] ? parseInt(parts[1]) : 2024
+          const monthMapping = {
+            'January': 1, 'February': 2, 'March': 3, 'April': 4,
+            'May': 5, 'June': 6, 'July': 7, 'August': 8,
+            'September': 9, 'October': 10, 'November': 11, 'December': 12
+          }
+          const monthOrder = monthMapping[month] || 13
+          return year * 100 + monthOrder
+        }
+        return extractFileOrder(a) - extractFileOrder(b)
+      })
+      
+      for (const file of sortedFiles) {
         try {
-          const month = file.split(' ')[0]
+          // Extract month and year to handle multiple files for same month
+          const parts = file.split(' ')
+          const month = parts[0]
+          const year = parts[1]
+          const monthKey = year ? `${month} ${year}` : month
           const filePath = path.join(process.cwd(), dir, file)
           const workbook = XLSX.readFile(filePath)
           const sheetName = workbook.SheetNames[0]
@@ -54,11 +75,11 @@ function loadRetrospectiveData() {
             jsonData = XLSX.utils.sheet_to_json(worksheet)
           }
           
-          // If month already exists, append data (in case of duplicates)
-          if (data[month]) {
-            data[month] = [...data[month], ...jsonData]
+          // If monthKey already exists, append data (in case of duplicates)
+          if (data[monthKey]) {
+            data[monthKey] = [...data[monthKey], ...jsonData]
           } else {
-            data[month] = jsonData
+            data[monthKey] = jsonData
           }
         } catch (error) {
           console.error(`Error loading ${file}:`, error.message)
@@ -80,106 +101,86 @@ function extractMonthOrder(monthName) {
     'May': 5, 'June': 6, 'July': 7, 'August': 8,
     'September': 9, 'October': 10, 'November': 11, 'December': 12
   };
-  return monthMapping[monthName] || 13;
+  
+  // Handle "Month Year" format
+  const parts = monthName.split(' ')
+  const month = parts[0]
+  const year = parts[1] ? parseInt(parts[1]) : 2024 // Default year for backward compatibility
+  
+  const monthOrder = monthMapping[month] || 13
+  
+  // Create a sortable number: YYYYMM format
+  return year * 100 + monthOrder
 }
 
-// Analyze trends for a specific question
+// Analyze trends for a specific question with STRICT column matching
 function analyzeQuestionTrends(data, questionColumn) {
   const trends = {}
   const responseCounts = {}
   
-  // Get all months from the data
-  const allMonths = Object.keys(data)
+  console.log(`🔍 Next.js: Analyzing question: "${questionColumn}"`)
+  
+  // Get all months from the data and sort them chronologically
+  const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
   
   for (const month of allMonths) {
     const df = data[month]
+    console.log(`📊 Next.js: Processing month: ${month}, data length: ${df.length}`)
     
     if (df.length > 0) {
-      // Try exact match first
-      let questionKey = questionColumn
+      const availableColumns = Object.keys(df[0])
       
-      // If exact match fails, try to find a similar column
-      if (!df[0].hasOwnProperty(questionKey)) {
-        // Look for columns that contain the question text
-        const availableColumns = Object.keys(df[0])
-        
-        // First try: exact match
-        let matchingColumn = availableColumns.find(col => col === questionKey)
-        
-        // Second try: contains the question text (more flexible)
-        if (!matchingColumn) {
-          // Split question into key phrases and look for partial matches
-          const questionPhrases = [
-            'capacity',
-            'process changes',
-            'processes enablement',
-            'DEV or QA Resources',
-            'Not Applicable',
-            'EM',
-            'SM',
-            'Other Folks',
-            'process streamlining'
-          ]
-          
-          matchingColumn = availableColumns.find(col => 
-            questionPhrases.some(phrase => 
-              col.toLowerCase().includes(phrase.toLowerCase())
-            )
-          )
-        }
-        
-        // Third try: find the most similar column by text similarity
-        if (!matchingColumn) {
-          let bestMatch = null
-          let bestScore = 0
-          
-          for (const col of availableColumns) {
-            const colLower = col.toLowerCase()
-            const questionLower = questionKey.toLowerCase()
-            
-            // Simple similarity score based on common words
-            const colWords = colLower.split(/\s+/)
-            const questionWords = questionLower.split(/\s+/)
-            const commonWords = colWords.filter(word => questionWords.includes(word))
-            const score = commonWords.length / Math.max(colWords.length, questionWords.length)
-            
-            if (score > bestScore) {
-              bestScore = score
-              bestMatch = col
-            }
-          }
-          
-          if (bestScore > 0.3) { // Threshold for similarity
-            matchingColumn = bestMatch
-          }
-        }
-        
-        if (matchingColumn) {
-          questionKey = matchingColumn
-        }
-      }
+      // STRICT MATCHING: Only use EXACT column name match
+      const questionKey = availableColumns.find(col => col === questionColumn)
       
-      if (df[0].hasOwnProperty(questionKey)) {
+      if (questionKey) {
+        // Column exists - process the data
+        console.log(`✅ Next.js: Found exact column match for ${month}: "${questionKey}"`)
+        
         // Count responses for each answer option
         const answerCounts = {}
+        let totalValidResponses = 0
+        
         df.forEach(row => {
           const answer = row[questionKey]
           if (answer !== undefined && answer !== null && answer !== '') {
             answerCounts[answer] = (answerCounts[answer] || 0) + 1
+            totalValidResponses++
           }
         })
         
-        trends[month] = answerCounts
-        responseCounts[month] = df.length
+        if (totalValidResponses > 0) {
+          // Convert counts to percentages
+          const percentages = {}
+          for (const [answer, count] of Object.entries(answerCounts)) {
+            percentages[answer] = Math.round((count / totalValidResponses) * 100 * 100) / 100
+          }
+          trends[month] = percentages
+          responseCounts[month] = totalValidResponses
+          console.log(`✅ Next.js: Processed ${month}: ${totalValidResponses} responses, ${Object.keys(percentages).length} answer types`)
+        } else {
+          // Column exists but no valid responses
+          trends[month] = {}
+          responseCounts[month] = 0
+          console.log(`⚠️ Next.js: ${month}: Column exists but no valid responses`)
+        }
       } else {
-        trends[month] = {}
+        // Column doesn't exist - skip this month for this question
+        console.log(`❌ Next.js: No exact column match for ${month} - SKIPPING and marking as 0`)
+        console.log(`📋 Next.js: Available columns in ${month}:`, availableColumns.slice(0, 5)) // Show first 5 for debugging
+        
+        // Don't include this month in trends (skip it completely)
         responseCounts[month] = 0
       }
     } else {
-      trends[month] = {}
+      // No data for this month
       responseCounts[month] = 0
+      console.log(`⚠️ Next.js: ${month}: No data available`)
     }
   }
+  
+  console.log(`📈 Next.js: Final trends months:`, Object.keys(trends))
+  console.log(`📊 Next.js: Final response counts:`, Object.keys(responseCounts))
   
   return { trends, responseCounts }
 }
@@ -203,9 +204,16 @@ export async function GET(request, { params }) {
     // Get all months and sort them
     const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
     
+    // Create sorted trends object
+    const sortedTrends = {}
+    const sortedMonths = Object.keys(trends).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
+    for (const month of sortedMonths) {
+      sortedTrends[month] = trends[month]
+    }
+    
     const result = {
       question,
-      trends,
+      trends: sortedTrends,
       responseCounts,
       months: allMonths
     }

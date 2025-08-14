@@ -63,10 +63,32 @@ function loadRetrospectiveData() {
       )
       console.log(`Excel files found in ${dir}:`, excelFiles)
       
-      for (const file of excelFiles) {
+      // Sort files chronologically before processing
+      const sortedFiles = excelFiles.sort((a, b) => {
+        const extractFileOrder = (filename) => {
+          const parts = filename.split(' ')
+          const month = parts[0]
+          const year = parts[1] ? parseInt(parts[1]) : 2024
+          const monthMapping = {
+            'January': 1, 'February': 2, 'March': 3, 'April': 4,
+            'May': 5, 'June': 6, 'July': 7, 'August': 8,
+            'September': 9, 'October': 10, 'November': 11, 'December': 12
+          }
+          const monthOrder = monthMapping[month] || 13
+          return year * 100 + monthOrder
+        }
+        return extractFileOrder(a) - extractFileOrder(b)
+      })
+      console.log(`Sorted files in ${dir}:`, sortedFiles)
+      
+      for (const file of sortedFiles) {
         try {
           console.log(`Processing file: ${file}`)
-          const month = file.split(' ')[0]
+          // Extract month and year to handle multiple files for same month
+          const parts = file.split(' ')
+          const month = parts[0]
+          const year = parts[1]
+          const monthKey = year ? `${month} ${year}` : month
           const filePath = path.join(__dirname, '..', dir, file)
           console.log(`File path: ${filePath}`)
           const workbook = XLSX.readFile(filePath)
@@ -130,14 +152,14 @@ function loadRetrospectiveData() {
             }
           }
           
-          // If month already exists, append data (in case of duplicates)
-          if (data[month]) {
-            console.log(`Appending data to existing ${month}: ${jsonData.length} additional responses`)
-            data[month] = [...data[month], ...jsonData]
+          // If monthKey already exists, append data (in case of duplicates)
+          if (data[monthKey]) {
+            console.log(`Appending data to existing ${monthKey}: ${jsonData.length} additional responses`)
+            data[monthKey] = [...data[monthKey], ...jsonData]
           } else {
-            data[month] = jsonData
+            data[monthKey] = jsonData
           }
-          console.log(`Loaded ${month}: ${jsonData.length} responses from ${file}`)
+          console.log(`Loaded ${monthKey}: ${jsonData.length} responses from ${file}`)
         } catch (error) {
           console.error(`Error loading ${file}:`, error.message)
         }
@@ -158,123 +180,86 @@ function extractMonthOrder(monthName) {
     'May': 5, 'June': 6, 'July': 7, 'August': 8,
     'September': 9, 'October': 10, 'November': 11, 'December': 12
   };
-  return monthMapping[monthName] || 13;
+  
+  // Handle "Month Year" format
+  const parts = monthName.split(' ')
+  const month = parts[0]
+  const year = parts[1] ? parseInt(parts[1]) : 2024 // Default year for backward compatibility
+  
+  const monthOrder = monthMapping[month] || 13
+  
+  // Create a sortable number: YYYYMM format
+  return year * 100 + monthOrder
 }
 
-// Analyze trends for a specific question
+// Analyze trends for a specific question with STRICT column matching
 function analyzeQuestionTrends(data, questionColumn) {
   const trends = {}
   const responseCounts = {}
   
-  console.log(`Analyzing question: "${questionColumn}"`)
+  console.log(`🔍 Analyzing question: "${questionColumn}"`)
   
-  // Get all months from the data
-  const allMonths = Object.keys(data)
+  // Get all months from the data and sort them chronologically
+  const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
   
   for (const month of allMonths) {
     const df = data[month]
-    console.log(`Processing month: ${month}, data length: ${df.length}`)
+    console.log(`📊 Processing month: ${month}, data length: ${df.length}`)
     
     if (df.length > 0) {
-      // Try exact match first
-      let questionKey = questionColumn
+      const availableColumns = Object.keys(df[0])
       
-      // If exact match fails, try to find a similar column
-      if (!df[0].hasOwnProperty(questionKey)) {
-        // Look for columns that contain the question text
-        const availableColumns = Object.keys(df[0])
+      // STRICT MATCHING: Only use EXACT column name match
+      const questionKey = availableColumns.find(col => col === questionColumn)
+      
+      if (questionKey) {
+        // Column exists - process the data
+        console.log(`✅ Found exact column match for ${month}: "${questionKey}"`)
         
-        // Debug: Show ALL columns for this month
-        console.log(`All columns in ${month}:`, availableColumns)
+        // Get value counts and calculate percentages
+        const valueCounts = {}
+        let totalResponses = 0
         
-        // First try: exact match
-        let matchingColumn = availableColumns.find(col => col === questionKey)
-        
-        // Second try: contains the question text (more flexible)
-        if (!matchingColumn) {
-          // Split question into key phrases and look for partial matches
-          const questionPhrases = [
-            'capacity',
-            'process changes',
-            'processes enablement',
-            'DEV or QA Resources',
-            'percent of your available capacity'
-          ]
-          
-          matchingColumn = availableColumns.find(col => {
-            if (col === 'Timestamp') return false
-            
-            const colLower = col.toLowerCase()
-            // Check if any key phrase is found in the column
-            return questionPhrases.some(phrase => 
-              colLower.includes(phrase.toLowerCase())
-            )
-          })
+        for (const row of df) {
+          const value = row[questionKey]
+          if (value !== undefined && value !== null && value !== '') {
+            valueCounts[value] = (valueCounts[value] || 0) + 1
+            totalResponses++
+          }
         }
         
-        // Third try: look for columns with similar structure
-        if (!matchingColumn) {
-          const questionWords = questionKey.toLowerCase()
-            .replace(/[^\w\s]/g, ' ') // Remove special characters
-            .split(/\s+/)
-            .filter(word => word.length > 3) // Only consider words longer than 3 characters
-          
-          matchingColumn = availableColumns.find(col => {
-            if (col === 'Timestamp') return false
-            
-            const colLower = col.toLowerCase()
-            const matchingWords = questionWords.filter(word => colLower.includes(word))
-            
-            // More lenient matching - at least 30% of words must match
-            const minWordMatch = Math.ceil(questionWords.length * 0.3)
-            return matchingWords.length >= minWordMatch
-          })
-        }
-        
-        if (matchingColumn) {
-          questionKey = matchingColumn
-          console.log(`Found matching column for ${month}: "${questionKey}" instead of "${questionColumn}"`)
+        if (totalResponses > 0) {
+          const percentages = {}
+          for (const [answer, count] of Object.entries(valueCounts)) {
+            percentages[answer] = Math.round((count / totalResponses) * 100 * 100) / 100
+          }
+          trends[month] = percentages
+          responseCounts[month] = totalResponses
+          console.log(`✅ Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
         } else {
-          console.log(`No matching column found for ${month}, available columns:`, availableColumns.filter(col => col !== 'Timestamp'))
-          // Don't skip - add this month with 0 values
+          // Column exists but no valid responses
           trends[month] = {}
-          responseCounts[month] = df.length
-          console.log(`Added ${month} with 0 values (${df.length} total responses)`)
-          continue
+          responseCounts[month] = 0
+          console.log(`⚠️ ${month}: Column exists but no valid responses`)
         }
-      }
-      
-      // Get value counts and calculate percentages
-      const valueCounts = {}
-      let totalResponses = 0
-      
-      for (const row of df) {
-        const value = row[questionKey]
-        if (value !== undefined && value !== null && value !== '') {
-          valueCounts[value] = (valueCounts[value] || 0) + 1
-          totalResponses++
-        }
-      }
-      
-      if (totalResponses > 0) {
-        const percentages = {}
-        for (const [answer, count] of Object.entries(valueCounts)) {
-          percentages[answer] = Math.round((count / totalResponses) * 100 * 100) / 100
-        }
-        trends[month] = percentages
-        responseCounts[month] = totalResponses
-        console.log(`Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
       } else {
-        // Even if no valid responses, include the month with 0 values
-        trends[month] = {}
-        responseCounts[month] = df.length
-        console.log(`Added ${month} with 0 values (${df.length} total responses)`)
+        // Column doesn't exist - mark as 0 (skip this release for this question)
+        console.log(`❌ No exact column match for ${month} - SKIPPING and marking as 0`)
+        console.log(`📋 Available columns in ${month}:`, availableColumns.slice(0, 5)) // Show first 5 for debugging
+        
+        // Don't include this month in trends (skip it completely)
+        // This way the frontend will know this question doesn't exist for this release
+        responseCounts[month] = 0
       }
+    } else {
+      // No data for this month
+      responseCounts[month] = 0
+      console.log(`⚠️ ${month}: No data available`)
     }
   }
   
-  console.log(`Final trends:`, Object.keys(trends))
-  console.log(`Final response counts:`, Object.keys(responseCounts))
+  console.log(`📈 Final trends months:`, Object.keys(trends))
+  console.log(`📊 Final response counts:`, Object.keys(responseCounts))
   
   return { trends, responseCounts }
 }
@@ -347,22 +332,36 @@ app.get('/api/data', (req, res) => {
 app.get('/api/trends/:question', (req, res) => {
   try {
     const { question } = req.params;
-    const data = loadRetrospectiveData();
+    const rawData = loadRetrospectiveData();
     
-    if (Object.keys(data).length === 0) {
+    if (Object.keys(rawData).length === 0) {
       return res.status(404).json({ error: 'No retrospective files found' });
     }
     
-    const { trends, responseCounts } = analyzeQuestionTrends(data, question);
+    // Force correct order by rebuilding data object in sorted order
+    const sortedData = {};
+    const sortedKeys = Object.keys(rawData).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b));
+    sortedKeys.forEach(key => {
+      sortedData[key] = rawData[key];
+    });
+    
+    const { trends, responseCounts } = analyzeQuestionTrends(sortedData, question);
     
     if (Object.keys(trends).length === 0) {
       return res.status(404).json({ error: 'No trend data available for the selected question' });
     }
     
-    // Create summary data for export
+    // Create summary data for export and sorted trends object
     const summaryData = [];
-    for (const month of Object.keys(trends).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))) {
+    const sortedTrends = {};
+    
+    // Sort months chronologically
+    const sortedMonths = Object.keys(trends).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b));
+    
+    for (const month of sortedMonths) {
       const monthData = trends[month];
+      sortedTrends[month] = monthData; // Add to sorted trends object
+      
       for (const [answer, percentage] of Object.entries(monthData)) {
         summaryData.push({
           Month: month,
@@ -372,11 +371,27 @@ app.get('/api/trends/:question', (req, res) => {
       }
     }
     
+    // Return trends in correct chronological order using array format
+    const orderedTrends = sortedMonths.map(month => ({
+      month: month,
+      data: trends[month] || {}
+    }));
+    
+    // Also create properly ordered object for backward compatibility
+    const finalTrends = {};
+    sortedMonths.forEach(month => {
+      if (trends[month]) {
+        finalTrends[month] = trends[month];
+      }
+    });
+    
     res.json({
-      trends,
+      trends: finalTrends,
+      orderedTrends: orderedTrends,  // New array format that guarantees order
       responseCounts,
       summaryData,
-      question
+      question,
+      monthOrder: sortedMonths  // Explicit month order for frontend
     });
   } catch (error) {
     console.error('Error analyzing trends:', error);
@@ -511,13 +526,8 @@ app.get('/api/releases', (req, res) => {
       }
     }
     
-    // Sort by chronological order
-    const monthOrder = {
-      'August': 1, 'September': 2, 'November': 3, 'January': 4,
-      'March': 5, 'April': 6, 'May': 7, 'July': 8
-    }
-    
-    releaseData.sort((a, b) => monthOrder[a.month] - monthOrder[b.month])
+    // Sort by chronological order using the same function as trends
+    releaseData.sort((a, b) => extractMonthOrder(a.month) - extractMonthOrder(b.month))
     
     res.json(releaseData)
   } catch (error) {
@@ -536,14 +546,13 @@ app.get('/api/director-analysis/:question', (req, res) => {
       return res.status(404).json({ error: 'No retrospective files found' })
     }
     
-    // Get the last 3 releases (most recent months)
-    const monthOrder = {
-      'August': 1, 'September': 2, 'November': 3, 'January': 4,
-      'March': 5, 'April': 6, 'May': 7, 'July': 8
-    }
+    // Get all releases sorted chronologically (most recent first)
+    const sortedMonths = Object.keys(data).sort((a, b) => extractMonthOrder(b) - extractMonthOrder(a))
+    console.log(`📊 Director Analysis: Processing ${sortedMonths.length} releases:`, sortedMonths)
     
-    const sortedMonths = Object.keys(data).sort((a, b) => monthOrder[b] - monthOrder[a])
+    // Take the first 3 most recent releases
     const last3Months = sortedMonths.slice(0, 3)
+    console.log(`📋 Using most recent 3 releases:`, last3Months)
     
     const releasesData = {}
     
@@ -960,13 +969,609 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   }
 });
 
+// Director-specific trends API endpoint
+app.get('/api/director-trends/:question', (req, res) => {
+  try {
+    const { question } = req.params
+    const { director } = req.query
+    
+    if (!director) {
+      return res.status(400).json({ error: 'Director parameter is required' })
+    }
+    
+    console.log(`Director trends API called for question: "${question}", director: "${director}"`)
+    
+    const data = loadRetrospectiveData()
+    
+    if (Object.keys(data).length === 0) {
+      return res.status(404).json({ error: 'No retrospective files found' })
+    }
+    
+    const { trends, responseCounts } = analyzeDirectorQuestionTrends(data, question, director)
+    
+    // Create summary data for the chart and sorted trends object
+    const summaryData = []
+    const sortedTrends = {}
+    const sortedMonths = Object.keys(trends).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
+    
+    for (const month of sortedMonths) {
+      const monthTrends = trends[month]
+      sortedTrends[month] = monthTrends // Add to sorted trends object
+      
+      for (const [answer, percentage] of Object.entries(monthTrends)) {
+        summaryData.push({
+          Month: month,
+          Answer: answer,
+          Percentage: percentage
+        })
+      }
+    }
+    
+    console.log(`Director trends analysis complete. Months: ${sortedMonths.length}, Total data points: ${summaryData.length}`)
+    
+    res.json({
+      trends: sortedTrends,
+      responseCounts,
+      summaryData,
+      question: question,
+      director: director
+    })
+    
+  } catch (error) {
+    console.error('Error analyzing director trends:', error)
+    res.status(500).json({ error: 'Failed to analyze director trends' })
+  }
+})
 
+// Function to analyze director-specific question trends
+function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
+  const trends = {}
+  const responseCounts = {}
+  
+  console.log(`Analyzing director trends for: "${targetDirector}" on question: "${questionColumn}"`)
+  
+  const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
+  
+  for (const month of allMonths) {
+    const df = data[month]
+    console.log(`Processing month: ${month}, data length: ${df.length}`)
+    
+    if (df.length > 0) {
+      // Find director column
+      const directorColumn = Object.keys(df[0]).find(col => 
+        col === 'You are part of which of the following directors org'
+      )
+      
+      if (!directorColumn) {
+        console.log(`No director column found in ${month}`)
+        continue
+      }
+      
+      // STRICT MATCHING: Only use EXACT column name match for questions
+      const availableColumns = Object.keys(df[0])
+      const questionKey = availableColumns.find(col => col === questionColumn)
+      
+      if (!questionKey) {
+        // Column doesn't exist - skip this month for this question
+        console.log(`❌ No exact column match for ${month} - SKIPPING director analysis`)
+        console.log(`📋 Available columns in ${month}:`, availableColumns.slice(0, 5)) // Show first 5 for debugging
+        trends[month] = {}
+        responseCounts[month] = 0
+        continue
+      }
+      
+      console.log(`✅ Found exact column match for ${month}: "${questionKey}"`)
+      
+      // Filter responses for the target director
+      const directorResponses = df.filter(response => 
+        response[directorColumn] === targetDirector
+      )
+      
+      console.log(`Director ${targetDirector} responses in ${month}: ${directorResponses.length}`)
+      
+      if (directorResponses.length === 0) {
+        trends[month] = {}
+        responseCounts[month] = 0
+        continue
+      }
+      
+      // Get value counts and calculate percentages
+      const valueCounts = {}
+      let totalResponses = 0
+      
+      for (const response of directorResponses) {
+        const value = response[questionKey]
+        if (value && value !== '') {
+          valueCounts[value] = (valueCounts[value] || 0) + 1
+          totalResponses++
+        }
+      }
+      
+      // Convert counts to percentages
+      const percentages = {}
+      for (const [value, count] of Object.entries(valueCounts)) {
+        percentages[value] = (count / totalResponses) * 100
+      }
+      
+      trends[month] = percentages
+      responseCounts[month] = totalResponses
+      
+      console.log(`Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
+    }
+  }
+  
+  return { trends, responseCounts }
+}
+
+// Debug endpoint to check column headers
+app.get('/api/debug-headers', (req, res) => {
+  try {
+    const data = loadRetrospectiveData()
+    const debugInfo = {}
+    
+    Object.keys(data).forEach(month => {
+      if (data[month] && data[month].length > 0) {
+        debugInfo[month] = {
+          headers: Object.keys(data[month][0]),
+          sampleData: data[month][0]
+        }
+      }
+    })
+    
+    res.json(debugInfo)
+  } catch (error) {
+    res.status(500).json({ error: error.message })
+  }
+})
+
+// Refresh data endpoint to reload Excel files
+app.post('/api/refresh', (req, res) => {
+  try {
+    console.log('🔄 NODE.JS SERVER REFRESH - Clearing all stored metrics and reloading Excel files...')
+    
+    // Step 1: Clear any potential cached data (force fresh read)
+    console.log('🗑️ Clearing all stored data and metrics...')
+    
+    // Step 2: Re-scan Retrospectives folder completely
+    console.log('📁 Re-scanning Retrospectives folder for files...')
+    
+    const startTime = Date.now()
+    const data = loadRetrospectiveData()
+    const loadTime = Date.now() - startTime
+    
+    console.log(`📁 File scan complete: Found ${Object.keys(data).length} release files`)
+    if (Object.keys(data).length > 0) {
+      console.log(`📋 Release files detected: ${Object.keys(data).join(', ')}`)
+    }
+    
+    if (Object.keys(data).length === 0) {
+      console.log('⚠️ No files found after refresh - check Retrospectives folder')
+      return res.status(404).json({ 
+        error: 'No retrospective files found after refresh - please check the Retrospectives folder',
+        loadTime: loadTime,
+        folderScanned: true
+      })
+    }
+    
+    // Get summary statistics about the refreshed data
+    const summary = {
+      filesLoaded: Object.keys(data).length,
+      totalResponses: Object.values(data).reduce((sum, monthData) => sum + monthData.length, 0),
+      loadTime: loadTime,
+      releases: Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b)),
+      refreshedAt: new Date().toISOString(),
+      metricsCleared: true,
+      folderScanned: true
+    }
+    
+    console.log(`✅ NODE.JS SERVER REFRESH COMPLETE`)
+    console.log(`📊 Results: ${summary.filesLoaded} files, ${summary.totalResponses} total responses in ${loadTime}ms`)
+    console.log(`🔄 All metrics cleared and fresh data loaded`)
+    
+    res.json({
+      success: true,
+      message: 'All stored metrics cleared and data refreshed successfully',
+      summary: summary
+    })
+    
+  } catch (error) {
+    console.error('❌ Error refreshing data:', error)
+    res.status(500).json({ 
+      error: 'Failed to refresh data',
+      details: error.message,
+      metricsCleared: true
+    })
+  }
+})
 
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error('Server error:', error);
   res.status(500).json({ error: 'Internal server error' });
 });
+
+// API endpoint to get all unique questions from all Excel files
+app.get('/api/all-questions', (req, res) => {
+  try {
+    console.log('🔍 ALL QUESTIONS API: Reading questions from all_unique_questions.txt...')
+    
+    const startTime = Date.now()
+    
+    // First, try to read from the predefined all_unique_questions.txt file
+    const questionsFilePath = path.join(__dirname, '..', 'all_unique_questions.txt')
+    
+    if (fs.existsSync(questionsFilePath)) {
+      console.log('📖 Reading questions from all_unique_questions.txt file...')
+      const fileContent = fs.readFileSync(questionsFilePath, 'utf8')
+      
+      // Parse sections and questions
+      const sections = {}
+      const allQuestions = []
+      let currentSection = 'General'
+      
+      const lines = fileContent.split('\n').map(line => line.trim())
+      
+      for (const line of lines) {
+        if (line.startsWith('Section Name:') || line.startsWith('Section:')) {
+          // Extract section name
+          currentSection = line.replace(/^Section (Name:?)?/i, '').trim()
+          if (!sections[currentSection]) {
+            sections[currentSection] = []
+          }
+        } else if (line.length > 0) {
+          // Add question to current section and to all questions
+          sections[currentSection] = sections[currentSection] || []
+          sections[currentSection].push(line)
+          allQuestions.push(line)
+        }
+      }
+      
+      const loadTime = Date.now() - startTime
+      
+      console.log(`📊 Questions loaded from file: ${allQuestions.length} questions across ${Object.keys(sections).length} sections in ${loadTime}ms`)
+      console.log(`📋 Sections found: ${Object.keys(sections).join(', ')}`)
+      
+      res.json({
+        success: true,
+        questions: allQuestions,
+        sections: sections,
+        metadata: {
+          totalUniqueQuestions: allQuestions.length,
+          totalSections: Object.keys(sections).length,
+          sectionNames: Object.keys(sections),
+          source: 'all_unique_questions.txt',
+          loadTime: loadTime,
+          extractedAt: new Date().toISOString()
+        }
+      })
+      return
+    }
+    
+    // Fallback: Extract from Excel files if txt file doesn't exist
+    console.log('📊 Fallback: Extracting unique questions from Excel files...')
+    const allQuestions = [] // Use array to preserve order
+    const seenQuestions = new Set() // Use set to track uniqueness
+    const questionsByRelease = {}
+    
+    // Try both current directory and Retrospectives subfolder
+    const directories = ['.', './Retrospectives']
+    
+    for (const dir of directories) {
+      try {
+        const targetPath = path.join(__dirname, '..', dir)
+        
+        if (!fs.existsSync(targetPath)) {
+          console.log(`Directory ${targetPath} does not exist, skipping...`)
+          continue
+        }
+        
+        const files = fs.readdirSync(targetPath)
+        const excelFiles = files.filter(file => 
+          file.endsWith('.xlsx') && 
+          file.includes('Retrospective') && 
+          !file.includes('~$')
+        )
+        
+        console.log(`📁 Found ${excelFiles.length} Excel files in ${dir}:`, excelFiles)
+        
+        // Sort files chronologically
+        const sortedFiles = excelFiles.sort((a, b) => {
+          const extractFileOrder = (filename) => {
+            const monthYearMatch = filename.match(/(\w+)\s+(\d{4})\s+Release/)
+            if (monthYearMatch) {
+              const [, month, year] = monthYearMatch
+              return extractMonthOrder(`${month} ${year}`)
+            }
+            return 999999
+          }
+          return extractFileOrder(a) - extractFileOrder(b)
+        })
+        
+        for (const file of sortedFiles) {
+          try {
+            const filePath = path.join(targetPath, file)
+            console.log(`📄 Processing file: ${file}`)
+            
+            const workbook = XLSX.readFile(filePath)
+            const sheetName = workbook.SheetNames[0]
+            const worksheet = workbook.Sheets[sheetName]
+            
+            const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 })
+            
+            if (jsonData.length > 0) {
+              const headers = jsonData[0]
+              
+              console.log(`📊 File ${file} has ${headers.length} columns, ${jsonData.length} rows`)
+              
+              const monthYearMatch = file.match(/(\w+)\s+(\d{4})\s+Release/)
+              const releaseKey = monthYearMatch ? `${monthYearMatch[1]} ${monthYearMatch[2]}` : file
+              
+              const releaseQuestions = []
+              
+              headers.forEach((header, index) => {
+                if (header && header.trim() && header !== 'Timestamp') {
+                  const cleanHeader = header.trim()
+                  // Add to array only if not seen before (maintains order)
+                  if (!seenQuestions.has(cleanHeader)) {
+                    allQuestions.push(cleanHeader)
+                    seenQuestions.add(cleanHeader)
+                  }
+                  releaseQuestions.push(cleanHeader)
+                }
+              })
+              
+              questionsByRelease[releaseKey] = {
+                file: file,
+                questionCount: releaseQuestions.length,
+                questions: releaseQuestions
+              }
+              
+              console.log(`✅ Extracted ${releaseQuestions.length} questions from ${releaseKey}`)
+            }
+          } catch (fileError) {
+            console.error(`Error processing file ${file}:`, fileError.message)
+          }
+        }
+      } catch (error) {
+        console.error(`Error reading directory ${dir}:`, error.message)
+      }
+    }
+    
+    const loadTime = Date.now() - startTime
+    // Questions are already in the order they were encountered (chronological file order)
+    const uniqueQuestions = allQuestions
+    
+    console.log(`📊 Extraction complete: ${uniqueQuestions.length} unique questions found in ${loadTime}ms`)
+    console.log(`📋 Questions found across ${Object.keys(questionsByRelease).length} releases`)
+    
+    if (uniqueQuestions.length > 0) {
+      console.log(`📝 Sample questions:`)
+      uniqueQuestions.slice(0, 5).forEach((q, i) => {
+        console.log(`   ${i + 1}. ${q.substring(0, 100)}${q.length > 100 ? '...' : ''}`)
+      })
+    }
+    
+    res.json({
+      success: true,
+      questions: uniqueQuestions,
+      metadata: {
+        totalUniqueQuestions: uniqueQuestions.length,
+        releaseCount: Object.keys(questionsByRelease).length,
+        questionsByRelease: questionsByRelease,
+        loadTime: loadTime,
+        extractedAt: new Date().toISOString()
+      }
+    })
+    
+  } catch (error) {
+    console.error('❌ Error extracting questions:', error)
+    res.status(500).json({ error: error.message, success: false })
+  }
+})
+
+// API endpoint to get questions by section
+app.get('/api/questions-by-section/:section', (req, res) => {
+  try {
+    const { section } = req.params
+    console.log(`🔍 QUESTIONS BY SECTION API: Getting questions for section "${section}"...`)
+    
+    const questionsFilePath = path.join(__dirname, '..', 'all_unique_questions.txt')
+    
+    if (!fs.existsSync(questionsFilePath)) {
+      return res.status(404).json({ 
+        error: 'Questions file not found',
+        success: false 
+      })
+    }
+    
+    const fileContent = fs.readFileSync(questionsFilePath, 'utf8')
+    const sections = {}
+    let currentSection = 'General'
+    
+    const lines = fileContent.split('\n').map(line => line.trim())
+    
+    for (const line of lines) {
+      if (line.startsWith('Section Name:') || line.startsWith('Section:')) {
+        currentSection = line.replace(/^Section (Name:?)?/i, '').trim()
+        if (!sections[currentSection]) {
+          sections[currentSection] = []
+        }
+      } else if (line.length > 0) {
+        sections[currentSection] = sections[currentSection] || []
+        sections[currentSection].push(line)
+      }
+    }
+    
+    // Handle "All Sections" special case
+    if (section.toLowerCase() === 'all' || section.toLowerCase() === 'all sections') {
+      const allQuestions = []
+      Object.values(sections).forEach(sectionQuestions => {
+        allQuestions.push(...sectionQuestions)
+      })
+      
+      return res.json({
+        success: true,
+        section: 'All Sections',
+        questions: allQuestions,
+        metadata: {
+          totalQuestions: allQuestions.length,
+          availableSections: Object.keys(sections)
+        }
+      })
+    }
+    
+    // Find matching section (case-insensitive)
+    const matchingSection = Object.keys(sections).find(
+      sec => sec.toLowerCase() === section.toLowerCase()
+    )
+    
+    if (!matchingSection) {
+      return res.status(404).json({ 
+        error: `Section "${section}" not found`,
+        availableSections: Object.keys(sections),
+        success: false 
+      })
+    }
+    
+    const questions = sections[matchingSection] || []
+    
+    res.json({
+      success: true,
+      section: matchingSection,
+      questions: questions,
+      metadata: {
+        totalQuestions: questions.length,
+        availableSections: Object.keys(sections)
+      }
+    })
+    
+  } catch (error) {
+    console.error('Error getting questions by section:', error)
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    })
+  }
+})
+
+// API endpoint to refresh questions from Excel files and update the txt file
+app.post('/api/refresh-questions-from-excel', (req, res) => {
+  try {
+    console.log('🔄 REFRESH QUESTIONS: Extracting fresh questions from Excel files...')
+    
+    const startTime = Date.now()
+    const allQuestions = [] // Use array to preserve chronological order
+    const seenQuestions = new Set() // Use set to track uniqueness
+    const questionsByRelease = {}
+    
+    // Try both current directory and Retrospectives subfolder
+    const directories = ['.', './Retrospectives']
+    
+    for (const dir of directories) {
+      try {
+        const targetPath = path.join(__dirname, '..', dir)
+        
+        if (!fs.existsSync(targetPath)) {
+          console.log(`Directory ${targetPath} does not exist, skipping...`)
+          continue
+        }
+        
+        const files = fs.readdirSync(targetPath)
+        const excelFiles = files.filter(file => 
+          file.endsWith('.xlsx') && 
+          file.includes('Retrospective') && 
+          !file.includes('~$')
+        )
+        
+        console.log(`📁 Found ${excelFiles.length} Excel files in ${dir}: ${JSON.stringify(excelFiles)}`)
+        
+        // Sort Excel files chronologically before processing
+        const sortedFiles = excelFiles.sort((a, b) => {
+          const extractFileOrder = (filename) => {
+            const match = filename.match(/(January|February|March|April|May|June|July|August|September|October|November|December)\s*(\d{4})/i)
+            if (!match) return 999999
+            const monthMap = {
+              'January': 1, 'February': 2, 'March': 3, 'April': 4, 'May': 5, 'June': 6,
+              'July': 7, 'August': 8, 'September': 9, 'October': 10, 'November': 11, 'December': 12
+            }
+            const month = monthMap[match[1]]
+            const year = parseInt(match[2])
+            return year * 100 + month
+          }
+          return extractFileOrder(a) - extractFileOrder(b)
+        })
+        
+        for (const file of sortedFiles) {
+          try {
+            const filePath = path.join(targetPath, file)
+            console.log(`📄 Processing file: ${file}`)
+            
+            const workbook = XLSX.readFile(filePath)
+            const sheetName = workbook.SheetNames[0]
+            const sheet = workbook.Sheets[sheetName]
+            const headers = XLSX.utils.sheet_to_json(sheet, { header: 1 })[0]
+            
+            console.log(`📊 File ${file} has ${headers.length} columns, ${XLSX.utils.sheet_to_json(sheet).length + 1} rows`)
+            
+            const releaseQuestions = []
+            headers.forEach((header, index) => {
+              if (header && header.trim() && header !== 'Timestamp') {
+                const cleanHeader = header.trim()
+                // Add to array only if not seen before (maintains chronological order)
+                if (!seenQuestions.has(cleanHeader)) {
+                  allQuestions.push(cleanHeader)
+                  seenQuestions.add(cleanHeader)
+                }
+                releaseQuestions.push(cleanHeader)
+              }
+            })
+            
+            console.log(`✅ Extracted ${releaseQuestions.length} questions from ${file.replace(' Release Retrospective (Responses).xlsx', '')}`)
+            questionsByRelease[file.replace(' Release Retrospective (Responses).xlsx', '')] = releaseQuestions
+            
+          } catch (fileError) {
+            console.error(`Error processing file ${file}:`, fileError.message)
+          }
+        }
+      } catch (dirError) {
+        console.error(`Error processing directory ${dir}:`, dirError.message)
+      }
+    }
+    
+    const loadTime = Date.now() - startTime
+    console.log(`📊 Extraction complete: ${allQuestions.length} unique questions found in ${loadTime}ms`)
+    console.log(`📋 Questions found across ${Object.keys(questionsByRelease).length} releases`)
+    
+    // Write questions to file (in chronological order, no sorting)
+    const questionsFilePath = path.join(__dirname, '..', 'all_unique_questions.txt')
+    const questionsContent = allQuestions.join('\n')
+    fs.writeFileSync(questionsFilePath, questionsContent, 'utf8')
+    
+    console.log(`💾 Questions written to all_unique_questions.txt (${allQuestions.length} questions)`)
+    
+    res.json({
+      success: true,
+      message: 'Questions refreshed from Excel files and saved to all_unique_questions.txt',
+      questions: allQuestions,
+      metadata: {
+        totalUniqueQuestions: allQuestions.length,
+        releaseCount: Object.keys(questionsByRelease).length,
+        questionsByRelease: questionsByRelease,
+        source: 'Excel files (refreshed)',
+        loadTime: loadTime,
+        extractedAt: new Date().toISOString(),
+        filePath: questionsFilePath
+      }
+    })
+    
+  } catch (error) {
+    console.error('Error refreshing questions from Excel:', error)
+    res.status(500).json({ 
+      error: error.message,
+      success: false 
+    })
+  }
+})
 
 // Start server
 app.listen(PORT, () => {

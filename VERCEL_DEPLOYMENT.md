@@ -46,6 +46,25 @@ No environment variables are required for basic functionality.
 - **Output Directory**: `.next`
 - **Install Command**: `npm install`
 
+### 4. **Configuration**
+- `vercel.json` is included with optimized settings:
+  - 30-second function timeout for data processing
+  - Cache headers for static assets
+  - Automatic Next.js detection
+
+### 5. **Verification**
+After deployment, verify:
+```bash
+# Test summary endpoint
+curl https://your-app.vercel.app/api/summary
+
+# Test questions endpoint  
+curl https://your-app.vercel.app/api/questions
+
+# Test releases endpoint
+curl https://your-app.vercel.app/api/releases
+```
+
 ## How It Works
 
 ### **Data Loading**

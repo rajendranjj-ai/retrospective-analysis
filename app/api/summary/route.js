@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
-import XLSX from 'xlsx';
+import * as XLSX from 'xlsx';
 import path from 'path';
 import fs from 'fs';
+import { getCachedData, setCachedData } from '../cache.js';
 
 // Load retrospective data from the current directory
 function loadRetrospectiveData() {
@@ -55,10 +56,31 @@ function loadRetrospectiveData() {
       )
       console.log(`Excel files found in ${dir}:`, excelFiles)
       
-      for (const file of excelFiles) {
+      // Sort files chronologically before processing
+      const sortedFiles = excelFiles.sort((a, b) => {
+        const extractFileOrder = (filename) => {
+          const parts = filename.split(' ')
+          const month = parts[0]
+          const year = parts[1] ? parseInt(parts[1]) : 2024
+          const monthMapping = {
+            'January': 1, 'February': 2, 'March': 3, 'April': 4,
+            'May': 5, 'June': 6, 'July': 7, 'August': 8,
+            'September': 9, 'October': 10, 'November': 11, 'December': 12
+          }
+          const monthOrder = monthMapping[month] || 13
+          return year * 100 + monthOrder
+        }
+        return extractFileOrder(a) - extractFileOrder(b)
+      })
+      
+      for (const file of sortedFiles) {
         try {
           console.log(`Processing file: ${file}`)
-          const month = file.split(' ')[0]
+          // Extract month and year to handle multiple files for same month
+          const parts = file.split(' ')
+          const month = parts[0]
+          const year = parts[1]
+          const monthKey = year ? `${month} ${year}` : month
           const filePath = path.join(process.cwd(), dir, file)
           console.log(`File path: ${filePath}`)
           const workbook = XLSX.readFile(filePath)
@@ -105,14 +127,14 @@ function loadRetrospectiveData() {
             jsonData = XLSX.utils.sheet_to_json(worksheet)
           }
           
-          // If month already exists, append data (in case of duplicates)
-          if (data[month]) {
-            console.log(`Appending data to existing ${month}: ${jsonData.length} additional responses`)
-            data[month] = [...data[month], ...jsonData]
+          // If monthKey already exists, append data (in case of duplicates)
+          if (data[monthKey]) {
+            console.log(`Appending data to existing ${monthKey}: ${jsonData.length} additional responses`)
+            data[monthKey] = [...data[monthKey], ...jsonData]
           } else {
-            data[month] = jsonData
+            data[monthKey] = jsonData
           }
-          console.log(`Loaded ${month}: ${jsonData.length} responses from ${file}`)
+          console.log(`Loaded ${monthKey}: ${jsonData.length} responses from ${file}`)
         } catch (error) {
           console.error(`Error loading ${file}:`, error.message)
         }
@@ -139,6 +161,22 @@ function extractMonthOrder(monthName) {
 export async function GET() {
   try {
     console.log('API: Summary endpoint called')
+    
+    // For production/Vercel, read files directly
+    // Try server first only in development
+    if (process.env.NODE_ENV === 'development') {
+      try {
+        const serverResponse = await fetch('http://localhost:4005/api/summary')
+        if (serverResponse.ok) {
+          const serverData = await serverResponse.json()
+          console.log('Successfully got summary data from server')
+          return NextResponse.json(serverData)
+        }
+      } catch (error) {
+        console.log('Could not fetch summary from server:', error.message)
+      }
+    }
+    
     console.log('API: Loading retrospective data...')
     const data = loadRetrospectiveData()
     

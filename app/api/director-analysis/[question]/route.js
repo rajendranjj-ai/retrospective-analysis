@@ -5,25 +5,65 @@ import fs from 'fs';
 
 // Load retrospective data from the current directory
 function loadRetrospectiveData() {
+  console.log('🔍 VERCEL DEBUGGING: Starting to load retrospective data for director analysis...')
+  console.log('🔍 VERCEL DEBUGGING: Environment variables:')
+  console.log('  - NODE_ENV:', process.env.NODE_ENV)
+  console.log('  - VERCEL:', process.env.VERCEL)
+  console.log('  - VERCEL_ENV:', process.env.VERCEL_ENV)
+  console.log('  - Current working directory:', process.cwd())
+  
   const data = {}
   
-  // Check both current directory and Retrospectives subfolder
-  const directories = ['.', './Retrospectives']
+  // Enhanced directory checking for Vercel
+  let directories = []
+  
+  if (process.env.VERCEL) {
+    // Vercel environment: try multiple paths
+    directories = ['./Retrospectives', './public/Retrospectives', 'Retrospectives', 'public/Retrospectives', './public', 'public', '.']
+    console.log('🔍 VERCEL DEBUGGING: Using Vercel-optimized directory search order')
+  } else {
+    // Local development
+    directories = ['.', './Retrospectives']
+    console.log('🔍 VERCEL DEBUGGING: Using local development directory search')
+  }
+  
+  console.log('🔍 VERCEL DEBUGGING: Will check directories in order:', directories)
   
   for (const dir of directories) {
     try {
-      const files = fs.readdirSync(path.join(process.cwd(), dir))
+      const fullPath = path.join(process.cwd(), dir)
+      console.log(`🔍 VERCEL DEBUGGING: Checking directory: ${fullPath}`)
+      
+      if (!fs.existsSync(fullPath)) {
+        console.log(`🔍 VERCEL DEBUGGING: Directory ${fullPath} does not exist, skipping...`)
+        continue
+      }
+      
+      const files = fs.readdirSync(fullPath)
+      console.log(`🔍 VERCEL DEBUGGING: Files in ${dir}:`, files.length > 0 ? files.slice(0, 10) : 'No files found')
       
       const excelFiles = files.filter(file => 
         file.endsWith('.xlsx') && 
-        file.includes('Retrospective') &&
+        file.includes('Release Retrospective') &&
         !file.includes('~$') // Exclude temporary Excel files
       )
+      console.log(`🔍 VERCEL DEBUGGING: Excel files found in ${dir}:`, excelFiles)
+      
+      if (excelFiles.length === 0) {
+        console.log(`🔍 VERCEL DEBUGGING: No Excel files found in ${dir}, continuing to next directory...`)
+        continue
+      }
       
       for (const file of excelFiles) {
         try {
-          const month = file.split(' ')[0]
-          const filePath = path.join(process.cwd(), dir, file)
+          console.log(`🔍 VERCEL DEBUGGING: Processing file: ${file}`)
+          // Extract month and year to handle multiple files for same month
+          const parts = file.split(' ')
+          const month = parts[0]
+          const year = parts[1]
+          const monthKey = year ? `${month} ${year}` : month
+          const filePath = path.join(fullPath, file)
+          console.log(`🔍 VERCEL DEBUGGING: File path: ${filePath}`)
           const workbook = XLSX.readFile(filePath)
           const sheetName = workbook.SheetNames[0]
           const worksheet = workbook.Sheets[sheetName]
@@ -55,18 +95,28 @@ function loadRetrospectiveData() {
           }
           
           // If month already exists, append data (in case of duplicates)
-          if (data[month]) {
-            data[month] = [...data[month], ...jsonData]
+          if (data[monthKey]) {
+            data[monthKey] = [...data[monthKey], ...jsonData]
           } else {
-            data[month] = jsonData
+            data[monthKey] = jsonData
           }
+          console.log(`🔍 VERCEL DEBUGGING: Loaded ${monthKey}: ${jsonData.length} responses from ${file}`)
         } catch (error) {
-          console.error(`Error loading ${file}:`, error.message)
+          console.error(`🔍 VERCEL DEBUGGING: Error loading ${file}:`, error.message)
+          if (process.env.VERCEL) {
+            console.log(`🔍 VERCEL DEBUGGING: Vercel file access error for ${file} - this may be expected in serverless environment`)
+          }
         }
+      }
+      
+      // If we found files in this directory, break (prioritize first working directory)
+      if (excelFiles.length > 0) {
+        console.log(`🔍 VERCEL DEBUGGING: Successfully loaded ${excelFiles.length} files from ${dir}, stopping search`)
+        break
       }
     } catch (error) {
       // Directory might not exist, continue to next one
-      console.log(`Directory ${dir} not accessible, skipping...`)
+      console.log(`🔍 VERCEL DEBUGGING: Directory ${dir} not accessible, skipping...`, error.message)
     }
   }
   

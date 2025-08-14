@@ -54,18 +54,18 @@ export default function Dashboard() {
       setLoading(true)
       
       // Fetch summary data
-      const summaryResponse = await fetch('http://localhost:4005/api/summary')
+      const summaryResponse = await fetch('/api/summary')
       const summaryData = await summaryResponse.json()
       setSummary(summaryData)
 
       // Fetch available questions
-      const questionsResponse = await fetch('http://localhost:4005/api/questions')
+      const questionsResponse = await fetch('/api/questions')
       const questionsData = await questionsResponse.json()
       setQuestionCategories(questionsData.categories)
       setOrderedQuestions(questionsData.orderedQuestions || [])
-
+      
       // Fetch release data for the new chart
-      const releasesResponse = await fetch('http://localhost:4005/api/releases')
+      const releasesResponse = await fetch('/api/releases')
       const releasesData = await releasesResponse.json()
       console.log('Release data loaded:', releasesData)
       setReleaseData(releasesData)
@@ -88,12 +88,12 @@ export default function Dashboard() {
       setLoading(true)
       
       // Fetch trends data
-      const trendsResponse = await fetch(`http://localhost:4005/api/trends/${encodeURIComponent(question)}`)
+      const trendsResponse = await fetch(`/api/trends/${encodeURIComponent(question)}`)
       const trendsData = await trendsResponse.json()
       setTrends(trendsData)
       
       // Fetch director analysis data
-      const directorResponse = await fetch(`http://localhost:4005/api/director-analysis/${encodeURIComponent(question)}`)
+      const directorResponse = await fetch(`/api/director-analysis/${encodeURIComponent(question)}`)
       const directorData = await directorResponse.json()
       console.log('Director analysis data received:', directorData)
       setDirectorAnalysis(directorData)
@@ -138,7 +138,7 @@ export default function Dashboard() {
             <button
               onClick={async () => {
                 try {
-                  const response = await fetch('http://localhost:4005/api/export-all-ppt', {
+                  const response = await fetch('/api/export-all-ppt', {
                     method: 'POST',
                     headers: {
                       'Content-Type': 'application/json',
@@ -339,7 +339,7 @@ export default function Dashboard() {
                 onClick={async () => {
                   if (trends && directorAnalysis) {
                     try {
-                      const response = await fetch('http://localhost:4005/api/export-ppt', {
+                      const response = await fetch('/api/export-ppt', {
                         method: 'POST',
                         headers: {
                           'Content-Type': 'application/json',

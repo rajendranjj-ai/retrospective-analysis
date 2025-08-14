@@ -88,7 +88,11 @@ export async function GET() {
     const data = loadRetrospectiveData()
     
     if (!data || Object.keys(data).length === 0) {
-      return NextResponse.json({ error: 'No data found' }, { status: 404 })
+      console.log('Releases API: No data loaded, returning fallback data')
+      return NextResponse.json({ 
+        releases: [],
+        message: 'No Excel data found, but API is working'
+      })
     }
     
     // Get all months and sort them

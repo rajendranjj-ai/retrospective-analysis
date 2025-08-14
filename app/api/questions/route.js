@@ -78,7 +78,12 @@ export async function GET() {
     const data = loadRetrospectiveData()
     
     if (!data || Object.keys(data).length === 0) {
-      return NextResponse.json({ error: 'No data found' }, { status: 404 })
+      console.log('Questions API: No data loaded, returning fallback data')
+      return NextResponse.json({ 
+        categories: { 'No Data': [] },
+        orderedQuestions: [],
+        message: 'No Excel data found, but API is working'
+      })
     }
     
     // Get all unique questions from all months

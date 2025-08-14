@@ -316,6 +316,7 @@ export default function Dashboard() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            {/* Export All to PPT button - Hidden per user request
             <button
               onClick={async () => {
                 try {
@@ -350,6 +351,7 @@ export default function Dashboard() {
               <Download className="w-4 h-4" />
               Export All to PPT
             </button>
+            */}
             <button
               onClick={handleRefresh}
               disabled={loading}

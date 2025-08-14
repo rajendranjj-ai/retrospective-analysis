@@ -47,33 +47,69 @@ export default function Dashboard() {
 
   useEffect(() => {
     fetchData()
+    
+    // Add timeout to prevent infinite loading
+    const timeout = setTimeout(() => {
+      if (loading) {
+        console.log('Loading timeout reached, setting loading to false')
+        setLoading(false)
+        // Set default values
+        setSummary({ totalResponses: 0, totalQuestions: 0, averageResponseRate: 0 })
+        setQuestionCategories({})
+        setOrderedQuestions([])
+        setReleaseData([])
+      }
+    }, 30000) // 30 second timeout
+    
+    return () => clearTimeout(timeout)
   }, [])
 
   const fetchData = async () => {
     try {
       setLoading(true)
+      console.log('Starting to fetch data...')
       
       // Fetch summary data
+      console.log('Fetching summary data...')
       const summaryResponse = await fetch('/api/summary')
+      if (!summaryResponse.ok) {
+        throw new Error(`Summary API failed: ${summaryResponse.status}`)
+      }
       const summaryData = await summaryResponse.json()
+      console.log('Summary data received:', summaryData)
       setSummary(summaryData)
 
       // Fetch available questions
+      console.log('Fetching questions data...')
       const questionsResponse = await fetch('/api/questions')
+      if (!questionsResponse.ok) {
+        throw new Error(`Questions API failed: ${questionsResponse.status}`)
+      }
       const questionsData = await questionsResponse.json()
-      setQuestionCategories(questionsData.categories)
+      console.log('Questions data received:', questionsData)
+      setQuestionCategories(questionsData.categories || {})
       setOrderedQuestions(questionsData.orderedQuestions || [])
       
       // Fetch release data for the new chart
+      console.log('Fetching releases data...')
       const releasesResponse = await fetch('/api/releases')
+      if (!releasesResponse.ok) {
+        throw new Error(`Releases API failed: ${releasesResponse.status}`)
+      }
       const releasesData = await releasesResponse.json()
       console.log('Release data loaded:', releasesData)
-      setReleaseData(releasesData)
+      setReleaseData(releasesData.releases || [])
 
+      console.log('All data fetched successfully')
       setLoading(false)
     } catch (error) {
       console.error('Error fetching data:', error)
       setLoading(false)
+      // Set default values to prevent infinite loading
+      setSummary({ totalResponses: 0, totalQuestions: 0, averageResponseRate: 0 })
+      setQuestionCategories({})
+      setOrderedQuestions([])
+      setReleaseData([])
     }
   }
 
@@ -119,6 +155,16 @@ export default function Dashboard() {
           <div className="text-center py-20">
             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
             <p className="mt-4 text-gray-600">Loading data...</p>
+            <p className="mt-2 text-sm text-gray-500">This may take a few moments on first load</p>
+            <button 
+              onClick={() => {
+                console.log('Manual refresh clicked')
+                fetchData()
+              }}
+              className="mt-4 px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Retry
+            </button>
           </div>
         </div>
       </div>

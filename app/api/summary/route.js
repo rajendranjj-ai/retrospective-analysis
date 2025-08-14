@@ -107,6 +107,7 @@ function extractMonthOrder(monthName) {
 
 export async function GET() {
   try {
+    console.log('API: Summary endpoint called')
     console.log('API: Loading retrospective data...')
     const data = loadRetrospectiveData()
     
@@ -116,6 +117,7 @@ export async function GET() {
     }
     
     console.log('API: Data loaded successfully, processing summary...')
+    console.log('API: Found months:', Object.keys(data))
     
     // Calculate summary statistics
     const summary = {}

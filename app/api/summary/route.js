@@ -119,7 +119,7 @@ export async function GET() {
     
     // Calculate summary statistics
     const summary = {}
-    const totalResponses = {}
+    const monthlyResponses = {}
     const questionCounts = {}
     
     // Get all months and sort them
@@ -129,7 +129,7 @@ export async function GET() {
       const monthData = data[month]
       if (monthData && monthData.length > 0) {
         // Count total responses for this month
-        totalResponses[month] = monthData.length
+        monthlyResponses[month] = monthData.length
         
         // Count questions (columns) for this month
         if (monthData.length > 0) {
@@ -160,7 +160,7 @@ export async function GET() {
     }
     
     // Calculate totals for the summary
-    const totalResponses = Object.values(totalResponses).reduce((sum, count) => sum + count, 0)
+    const totalResponses = Object.values(monthlyResponses).reduce((sum, count) => sum + count, 0)
     const totalQuestions = Object.values(questionCounts).reduce((sum, count) => sum + count, 0)
     const averageResponseRate = allMonths.length > 0 ? totalResponses / allMonths.length : 0
     

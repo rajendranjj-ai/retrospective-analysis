@@ -101,9 +101,11 @@ temp/
 ehthumbs.db
 Thumbs.db
 
-# Excel files (data files)
+# Excel files (data files) - excluding Retrospectives folder
 *.xlsx
 *.xls
+!Retrospectives/*.xlsx
+!Retrospectives/*.xls
 
 # PowerPoint files
 *.pptx

@@ -120,6 +120,21 @@ function analyzeQuestionTrends(data, questionColumn) {
   
   console.log(`🔍 Next.js: Analyzing question: "${questionColumn}"`)
   
+  // Questions that should return raw responses instead of percentages
+  const textQuestions = [
+    'Share an interesting use case where Cursor helped you',
+    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ?',
+    'Any feedback on Cursor Usage ?',
+    'Which mode do you prefer using in Cursor ?',
+    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?',
+    'What are the key points for your preference as Copilot as IDE ?'
+  ];
+  
+  // Check if this is a text question
+  const isTextQuestion = textQuestions.some(q => 
+    questionColumn.includes(q) || q.includes(questionColumn.substring(0, 50))
+  );
+  
   // Get all months from the data and sort them chronologically
   const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
   
@@ -165,32 +180,57 @@ function analyzeQuestionTrends(data, questionColumn) {
         // Column exists - process the data
         console.log(`✅ Next.js: Found exact column match for ${month}: "${questionKey}"`)
         
-        // Count responses for each answer option
-        const answerCounts = {}
-        let totalValidResponses = 0
-        
-        df.forEach(row => {
-          const answer = row[questionKey]
-          if (answer !== undefined && answer !== null && answer !== '') {
-            answerCounts[answer] = (answerCounts[answer] || 0) + 1
-            totalValidResponses++
-          }
-        })
-        
-        if (totalValidResponses > 0) {
-          // Convert counts to percentages
-          const percentages = {}
-          for (const [answer, count] of Object.entries(answerCounts)) {
-            percentages[answer] = Math.round((count / totalValidResponses) * 100 * 100) / 100
-          }
-          trends[month] = percentages
+        if (isTextQuestion) {
+          // For text questions, collect all unique responses
+          const uniqueResponses = new Set()
+          let totalValidResponses = 0
+          
+          df.forEach(row => {
+            const answer = row[questionKey]
+            if (answer !== undefined && answer !== null && answer !== '' && 
+                answer.trim() !== '' && answer.trim() !== 'N/A' && answer.trim() !== '-') {
+              uniqueResponses.add(answer.trim())
+              totalValidResponses++
+            }
+          })
+          
+          // Convert to object format for compatibility (each response gets 100% since they're unique)
+          const responseData = {}
+          Array.from(uniqueResponses).forEach(response => {
+            responseData[response] = 100 // Each unique response gets 100% weight
+          })
+          
+          trends[month] = responseData
           responseCounts[month] = totalValidResponses
-          console.log(`✅ Next.js: Processed ${month}: ${totalValidResponses} responses, ${Object.keys(percentages).length} answer types`)
+          console.log(`✅ Next.js: Processed text question ${month}: ${totalValidResponses} responses, ${uniqueResponses.size} unique responses`)
         } else {
-          // Column exists but no valid responses
-          trends[month] = {}
-          responseCounts[month] = 0
-          console.log(`⚠️ Next.js: ${month}: Column exists but no valid responses`)
+          // Count responses for each answer option (regular percentage analysis)
+          const answerCounts = {}
+          let totalValidResponses = 0
+          
+          df.forEach(row => {
+            const answer = row[questionKey]
+            if (answer !== undefined && answer !== null && answer !== '') {
+              answerCounts[answer] = (answerCounts[answer] || 0) + 1
+              totalValidResponses++
+            }
+          })
+          
+          if (totalValidResponses > 0) {
+            // Convert counts to percentages
+            const percentages = {}
+            for (const [answer, count] of Object.entries(answerCounts)) {
+              percentages[answer] = Math.round((count / totalValidResponses) * 100 * 100) / 100
+            }
+            trends[month] = percentages
+            responseCounts[month] = totalValidResponses
+            console.log(`✅ Next.js: Processed ${month}: ${totalValidResponses} responses, ${Object.keys(percentages).length} answer types`)
+          } else {
+            // Column exists but no valid responses
+            trends[month] = {}
+            responseCounts[month] = 0
+            console.log(`⚠️ Next.js: ${month}: Column exists but no valid responses`)
+          }
         }
       } else {
         // Column doesn't exist - skip this month for this question

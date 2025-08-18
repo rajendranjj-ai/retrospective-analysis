@@ -211,6 +211,21 @@ function analyzeQuestionTrends(data, questionColumn) {
   
   console.log(`🔍 Analyzing question: "${questionColumn}"`)
   
+  // Questions that should return raw responses instead of percentages
+  const textQuestions = [
+    'Share an interesting use case where Cursor helped you',
+    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ?',
+    'Any feedback on Cursor Usage ?',
+    'Which mode do you prefer using in Cursor ?',
+    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?',
+    'What are the key points for your preference as Copilot as IDE ?'
+  ];
+  
+  // Check if this is a text question
+  const isTextQuestion = textQuestions.some(q => 
+    questionColumn.includes(q) || q.includes(questionColumn.substring(0, 50))
+  );
+  
   // Get all months from the data and sort them chronologically
   const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
   
@@ -256,31 +271,56 @@ function analyzeQuestionTrends(data, questionColumn) {
       
       if (questionKey) {
         // Column exists - process the data
-        // Get value counts and calculate percentages
-        const valueCounts = {}
-        let totalResponses = 0
-        
-        for (const row of df) {
-          const value = row[questionKey]
-          if (value !== undefined && value !== null && value !== '') {
-            valueCounts[value] = (valueCounts[value] || 0) + 1
-            totalResponses++
+        if (isTextQuestion) {
+          // For text questions, collect all unique responses
+          const uniqueResponses = new Set()
+          let totalValidResponses = 0
+          
+          for (const row of df) {
+            const value = row[questionKey]
+            if (value !== undefined && value !== null && value !== '' && 
+                value.trim() !== '' && value.trim() !== 'N/A' && value.trim() !== '-') {
+              uniqueResponses.add(value.trim())
+              totalValidResponses++
+            }
           }
-        }
-        
-        if (totalResponses > 0) {
-          const percentages = {}
-          for (const [answer, count] of Object.entries(valueCounts)) {
-            percentages[answer] = Math.round((count / totalResponses) * 100 * 100) / 100
-          }
-          trends[month] = percentages
-          responseCounts[month] = totalResponses
-          console.log(`✅ Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
+          
+          // Convert to object format for compatibility (each response gets 100% since they're unique)
+          const responseData = {}
+          Array.from(uniqueResponses).forEach(response => {
+            responseData[response] = 100 // Each unique response gets 100% weight
+          })
+          
+          trends[month] = responseData
+          responseCounts[month] = totalValidResponses
+          console.log(`✅ Processed text question ${month}: ${totalValidResponses} responses, ${uniqueResponses.size} unique responses`)
         } else {
-          // Column exists but no valid responses
-          trends[month] = {}
-          responseCounts[month] = 0
-          console.log(`⚠️ ${month}: Column exists but no valid responses`)
+          // Get value counts and calculate percentages (regular analysis)
+          const valueCounts = {}
+          let totalResponses = 0
+          
+          for (const row of df) {
+            const value = row[questionKey]
+            if (value !== undefined && value !== null && value !== '') {
+              valueCounts[value] = (valueCounts[value] || 0) + 1
+              totalResponses++
+            }
+          }
+          
+          if (totalResponses > 0) {
+            const percentages = {}
+            for (const [answer, count] of Object.entries(valueCounts)) {
+              percentages[answer] = Math.round((count / totalResponses) * 100 * 100) / 100
+            }
+            trends[month] = percentages
+            responseCounts[month] = totalResponses
+            console.log(`✅ Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
+          } else {
+            // Column exists but no valid responses
+            trends[month] = {}
+            responseCounts[month] = 0
+            console.log(`⚠️ ${month}: Column exists but no valid responses`)
+          }
         }
       } else {
         // Column doesn't exist - mark as 0 (skip this release for this question)
@@ -1232,6 +1272,21 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
   
   console.log(`Analyzing director trends for: "${targetDirector}" on question: "${questionColumn}"`)
   
+  // Questions that should return raw responses instead of percentages
+  const textQuestions = [
+    'Share an interesting use case where Cursor helped you',
+    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ?',
+    'Any feedback on Cursor Usage ?',
+    'Which mode do you prefer using in Cursor ?',
+    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?',
+    'What are the key points for your preference as Copilot as IDE ?'
+  ];
+  
+  // Check if this is a text question
+  const isTextQuestion = textQuestions.some(q => 
+    questionColumn.includes(q) || q.includes(questionColumn.substring(0, 50))
+  );
+  
   const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
   
   for (const month of allMonths) {
@@ -1301,28 +1356,53 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
         continue
       }
       
-      // Get value counts and calculate percentages
-      const valueCounts = {}
-      let totalResponses = 0
-      
-      for (const response of directorResponses) {
-        const value = response[questionKey]
-        if (value && value !== '') {
-          valueCounts[value] = (valueCounts[value] || 0) + 1
-          totalResponses++
+      if (isTextQuestion) {
+        // For text questions, collect all unique responses
+        const uniqueResponses = new Set()
+        let totalValidResponses = 0
+        
+        for (const response of directorResponses) {
+          const value = response[questionKey]
+          if (value && value !== '' && value.trim() !== '' && 
+              value.trim() !== 'N/A' && value.trim() !== '-') {
+            uniqueResponses.add(value.trim())
+            totalValidResponses++
+          }
         }
+        
+        // Convert to object format for compatibility (each response gets 100% since they're unique)
+        const responseData = {}
+        Array.from(uniqueResponses).forEach(response => {
+          responseData[response] = 100 // Each unique response gets 100% weight
+        })
+        
+        trends[month] = responseData
+        responseCounts[month] = totalValidResponses
+        console.log(`Processed text question ${month}: ${totalValidResponses} responses, ${uniqueResponses.size} unique responses`)
+      } else {
+        // Get value counts and calculate percentages (regular analysis)
+        const valueCounts = {}
+        let totalResponses = 0
+        
+        for (const response of directorResponses) {
+          const value = response[questionKey]
+          if (value && value !== '') {
+            valueCounts[value] = (valueCounts[value] || 0) + 1
+            totalResponses++
+          }
+        }
+        
+        // Convert counts to percentages
+        const percentages = {}
+        for (const [value, count] of Object.entries(valueCounts)) {
+          percentages[value] = (count / totalResponses) * 100
+        }
+        
+        trends[month] = percentages
+        responseCounts[month] = totalResponses
+        
+        console.log(`Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
       }
-      
-      // Convert counts to percentages
-      const percentages = {}
-      for (const [value, count] of Object.entries(valueCounts)) {
-        percentages[value] = (count / totalResponses) * 100
-      }
-      
-      trends[month] = percentages
-      responseCounts[month] = totalResponses
-      
-      console.log(`Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
     }
   }
   

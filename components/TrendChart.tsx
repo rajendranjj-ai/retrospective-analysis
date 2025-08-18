@@ -1,6 +1,7 @@
 'use client'
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LabelList } from 'recharts'
+import ResponseTable from './ResponseTable'
 
 interface TrendChartProps {
   trends: { [month: string]: { [answer: string]: number } } | null
@@ -9,6 +10,44 @@ interface TrendChartProps {
 }
 
 export default function TrendChart({ trends, questionTitle, responseCounts }: TrendChartProps) {
+  // Questions that should display as tables instead of charts
+  const tableQuestions = [
+    'Share an interesting use case where Cursor helped you',
+    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ?',
+    'Any feedback on Cursor Usage ?',
+    'Which mode do you prefer using in Cursor ?',
+    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?',
+    'What are the key points for your preference as Copilot as IDE ?'
+  ];
+  
+  // Check if this question should display as a table
+  const shouldDisplayAsTable = tableQuestions.some(q => 
+    questionTitle.includes(q) || q.includes(questionTitle.substring(0, 50))
+  );
+  
+  if (shouldDisplayAsTable) {
+    // For table questions, convert trends data to raw responses format
+    const responses: { [month: string]: string[] } = {};
+    
+    if (trends) {
+      Object.keys(trends).forEach(month => {
+        const monthData = trends[month];
+        const monthResponses: string[] = [];
+        
+        // Extract all unique responses from the percentage data
+        Object.keys(monthData).forEach(response => {
+          if (response && response.trim() !== '') {
+            monthResponses.push(response);
+          }
+        });
+        
+        responses[month] = monthResponses;
+      });
+    }
+    
+    return <ResponseTable responses={responses} questionTitle={questionTitle} responseCounts={responseCounts} />;
+  }
+  
   // Early return if trends data is not available
   if (!trends || Object.keys(trends).length === 0) {
     return (

@@ -130,8 +130,36 @@ function analyzeQuestionTrends(data, questionColumn) {
     if (df.length > 0) {
       const availableColumns = Object.keys(df[0])
       
-      // STRICT MATCHING: Only use EXACT column name match
-      const questionKey = availableColumns.find(col => col === questionColumn)
+      // ENHANCED MATCHING: Try exact match first, then normalized match
+      let questionKey = availableColumns.find(col => col === questionColumn)
+      
+      if (!questionKey) {
+        // Try normalized matching: normalize both the search question and available columns
+        const normalizedSearchQuestion = questionColumn.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+        questionKey = availableColumns.find(col => {
+          const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+          
+          // Try exact match first
+          if (normalizedCol === normalizedSearchQuestion) {
+            return true
+          }
+          
+          // Try prefix match - search question is beginning of Excel column
+          // This handles cases like "What types of tasks..." vs "What types of tasks... (select all that apply)"
+          if (normalizedCol.startsWith(normalizedSearchQuestion) && 
+              normalizedCol.length > normalizedSearchQuestion.length) {
+            const remainder = normalizedCol.substring(normalizedSearchQuestion.length).trim()
+            // Only match if remainder starts with parentheses (additional clarification)
+            return remainder.startsWith('(') || remainder.startsWith('-') || remainder.startsWith('/')
+          }
+          
+          return false
+        })
+        
+        if (questionKey) {
+          console.log(`✅ Next.js: Found normalized column match for ${month}: "${questionKey}" (normalized from search: "${questionColumn}")`)
+        }
+      }
       
       if (questionKey) {
         // Column exists - process the data

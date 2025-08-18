@@ -174,49 +174,42 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
         continue
       }
       
-      // Try exact match first for question
-      let questionKey = questionColumn
+      // ENHANCED MATCHING: Try exact match first, then normalized match for questions
+      const availableColumns = Object.keys(df[0])
+      let questionKey = availableColumns.find(col => col === questionColumn)
       
-      if (!df[0].hasOwnProperty(questionKey)) {
-        const availableColumns = Object.keys(df[0])
-        
-        // Specialized matching for AI productivity question
-        if (questionKey.includes('With the usage of AI what has been increase in your productivity')) {
-          const matchingColumn = availableColumns.find(col => 
-            col.includes('With the usage of AI what has been increase in your productivity')
-          )
-          if (matchingColumn) {
-            questionKey = matchingColumn
-            console.log(`Found AI productivity variant for ${month}: "${questionKey}"`)
-          }
-        }
-        
-        // General fallback matching
-        if (!availableColumns.includes(questionKey)) {
-          const questionWords = questionKey.toLowerCase()
-            .replace(/[^\w\s]/g, ' ')
-            .split(/\s+/)
-            .filter(word => word.length > 3)
+      if (!questionKey) {
+        // Try normalized matching with prefix support
+        const normalizedSearchQuestion = questionColumn.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+        questionKey = availableColumns.find(col => {
+          const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
           
-          const matchingColumn = availableColumns.find(col => {
-            if (col === 'Timestamp') return false
-            
-            const colLower = col.toLowerCase()
-            const matchingWords = questionWords.filter(word => colLower.includes(word))
-            const minWordMatch = Math.ceil(questionWords.length * 0.3)
-            return matchingWords.length >= minWordMatch
-          })
-          
-          if (matchingColumn) {
-            questionKey = matchingColumn
-            console.log(`Found matching column for ${month}: "${questionKey}"`)
-          } else {
-            console.log(`No matching column found for ${month}`)
-            trends[month] = {}
-            responseCounts[month] = 0
-            continue
+          // Try exact match first
+          if (normalizedCol === normalizedSearchQuestion) {
+            return true
           }
+          
+          // Try prefix match - search question is beginning of Excel column
+          if (normalizedCol.startsWith(normalizedSearchQuestion) && 
+              normalizedCol.length > normalizedSearchQuestion.length) {
+            const remainder = normalizedCol.substring(normalizedSearchQuestion.length).trim()
+            // Only match if remainder starts with parentheses (additional clarification)
+            return remainder.startsWith('(') || remainder.startsWith('-') || remainder.startsWith('/')
+          }
+          
+          return false
+        })
+        
+        if (questionKey) {
+          console.log(`✅ Director Analysis API: Found normalized column match for "${questionColumn}" in ${month}: "${questionKey}"`)
         }
+      }
+      
+      if (!questionKey) {
+        // Column doesn't exist - skip this month for this question
+        console.log(`❌ Director Analysis API: No exact or normalized column match for "${questionColumn}" in ${month} - SKIPPING`)
+        console.log(`📋 Available columns in ${month}:`, availableColumns.slice(0, 5)) // Show first 5 for debugging
+        continue
       }
       
       // Filter responses for the target director

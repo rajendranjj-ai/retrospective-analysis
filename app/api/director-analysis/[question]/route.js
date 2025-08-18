@@ -165,15 +165,37 @@ function analyzeDirectorData(data, questionColumn) {
       }
       
       if (directorColumn) {
-        // Find the question column
-        let questionKey = questionColumn
+        // ENHANCED MATCHING: Try exact match first, then normalized match for questions
+        let questionKey = availableColumns.find(col => col === questionColumn)
         
-        if (!monthData[0].hasOwnProperty(questionKey)) {
-          // Try to find a similar column
-          questionKey = availableColumns.find(col => 
-            col === questionKey || 
-            col.toLowerCase().includes(questionKey.toLowerCase())
-          ) || questionKey
+        if (!questionKey) {
+          // Try normalized matching with prefix support
+          const normalizedSearchQuestion = questionColumn.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+          questionKey = availableColumns.find(col => {
+            const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+            
+            // Try exact match first
+            if (normalizedCol === normalizedSearchQuestion) {
+              return true
+            }
+            
+            // Try prefix match - search question is beginning of Excel column
+            if (normalizedCol.startsWith(normalizedSearchQuestion) && 
+                normalizedCol.length > normalizedSearchQuestion.length) {
+              const remainder = normalizedCol.substring(normalizedSearchQuestion.length).trim()
+              // Only match if remainder starts with parentheses (additional clarification)
+              return remainder.startsWith('(') || remainder.startsWith('-') || remainder.startsWith('/')
+            }
+            
+            return false
+          })
+          
+          if (questionKey) {
+            console.log(`✅ Director Analysis API: Found normalized column match for "${questionColumn}" in ${month}: "${questionKey}"`)
+          } else {
+            console.log(`❌ Director Analysis API: No exact or normalized column match for "${questionColumn}" in ${month} - SKIPPING`)
+            console.log(`📋 Available columns in ${month}:`, availableColumns.slice(0, 5)) // Show first 5 for debugging
+          }
         }
         
         if (monthData[0].hasOwnProperty(questionKey)) {

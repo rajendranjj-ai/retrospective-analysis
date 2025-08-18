@@ -229,7 +229,22 @@ function analyzeQuestionTrends(data, questionColumn) {
         const normalizedSearchQuestion = questionColumn.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
         questionKey = availableColumns.find(col => {
           const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
-          return normalizedCol === normalizedSearchQuestion
+          
+          // Try exact match first
+          if (normalizedCol === normalizedSearchQuestion) {
+            return true
+          }
+          
+          // Try prefix match - search question is beginning of Excel column
+          // This handles cases like "What types of tasks..." vs "What types of tasks... (select all that apply)"
+          if (normalizedCol.startsWith(normalizedSearchQuestion) && 
+              normalizedCol.length > normalizedSearchQuestion.length) {
+            const remainder = normalizedCol.substring(normalizedSearchQuestion.length).trim()
+            // Only match if remainder starts with parentheses (additional clarification)
+            return remainder.startsWith('(') || remainder.startsWith('-') || remainder.startsWith('/')
+          }
+          
+          return false
         })
         
         if (questionKey) {
@@ -616,11 +631,25 @@ app.get('/api/director-analysis/:question', (req, res) => {
         let questionColumn = availableColumns.find(col => col === question)
         
         if (!questionColumn) {
-          // Try normalized matching
+          // Try normalized matching with prefix support
           const normalizedSearchQuestion = question.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
           questionColumn = availableColumns.find(col => {
             const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
-            return normalizedCol === normalizedSearchQuestion
+            
+            // Try exact match first
+            if (normalizedCol === normalizedSearchQuestion) {
+              return true
+            }
+            
+            // Try prefix match - search question is beginning of Excel column
+            if (normalizedCol.startsWith(normalizedSearchQuestion) && 
+                normalizedCol.length > normalizedSearchQuestion.length) {
+              const remainder = normalizedCol.substring(normalizedSearchQuestion.length).trim()
+              // Only match if remainder starts with parentheses (additional clarification)
+              return remainder.startsWith('(') || remainder.startsWith('-') || remainder.startsWith('/')
+            }
+            
+            return false
           })
           
           if (questionColumn) {
@@ -1225,11 +1254,25 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
       let questionKey = availableColumns.find(col => col === questionColumn)
       
       if (!questionKey) {
-        // Try normalized matching: normalize both the search question and available columns
+        // Try normalized matching with prefix support
         const normalizedSearchQuestion = questionColumn.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
         questionKey = availableColumns.find(col => {
           const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
-          return normalizedCol === normalizedSearchQuestion
+          
+          // Try exact match first
+          if (normalizedCol === normalizedSearchQuestion) {
+            return true
+          }
+          
+          // Try prefix match - search question is beginning of Excel column
+          if (normalizedCol.startsWith(normalizedSearchQuestion) && 
+              normalizedCol.length > normalizedSearchQuestion.length) {
+            const remainder = normalizedCol.substring(normalizedSearchQuestion.length).trim()
+            // Only match if remainder starts with parentheses (additional clarification)
+            return remainder.startsWith('(') || remainder.startsWith('-') || remainder.startsWith('/')
+          }
+          
+          return false
         })
         
         if (questionKey) {

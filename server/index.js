@@ -101,11 +101,23 @@ function loadRetrospectiveData() {
           
           // Read ALL column headers from the first row
           const allHeaders = []
+          const headerMapping = {} // Map normalized headers to original headers
+          
           for (let col = range.s.c; col <= range.e.c; col++) {
             const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col }) // Row 1 (0-indexed)
             const cell = worksheet[cellAddress]
-            const headerText = cell && cell.v ? cell.v.toString() : `Column_${XLSX.utils.encode_col(col)}`
-            allHeaders.push(headerText)
+            const originalHeaderText = cell && cell.v ? cell.v.toString() : `Column_${XLSX.utils.encode_col(col)}`
+            
+            // Normalize header by replacing \r\n with space and trimming
+            const normalizedHeaderText = originalHeaderText.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+            
+            allHeaders.push(originalHeaderText) // Keep original for Excel processing
+            
+            // Store mapping for question matching
+            headerMapping[normalizedHeaderText] = originalHeaderText
+            if (normalizedHeaderText !== originalHeaderText) {
+              console.log(`Header normalized: "${originalHeaderText}" -> "${normalizedHeaderText}"`)
+            }
           }
           
           console.log(`All headers in ${file}:`, allHeaders)
@@ -209,13 +221,26 @@ function analyzeQuestionTrends(data, questionColumn) {
     if (df.length > 0) {
       const availableColumns = Object.keys(df[0])
       
-      // STRICT MATCHING: Only use EXACT column name match
-      const questionKey = availableColumns.find(col => col === questionColumn)
+      // ENHANCED MATCHING: Try exact match first, then normalized match
+      let questionKey = availableColumns.find(col => col === questionColumn)
+      
+      if (!questionKey) {
+        // Try normalized matching: normalize both the search question and available columns
+        const normalizedSearchQuestion = questionColumn.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+        questionKey = availableColumns.find(col => {
+          const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+          return normalizedCol === normalizedSearchQuestion
+        })
+        
+        if (questionKey) {
+          console.log(`✅ Found normalized column match for ${month}: "${questionKey}" (normalized from search: "${questionColumn}")`)
+        }
+      } else {
+        console.log(`✅ Found exact column match for ${month}: "${questionKey}"`)
+      }
       
       if (questionKey) {
         // Column exists - process the data
-        console.log(`✅ Found exact column match for ${month}: "${questionKey}"`)
-        
         // Get value counts and calculate percentages
         const valueCounts = {}
         let totalResponses = 0
@@ -586,12 +611,25 @@ app.get('/api/director-analysis/:question', (req, res) => {
         
         if (!directorColumn) continue
         
-        // Find the question column (STRICT EXACT MATCH ONLY)
+        // Find the question column (ENHANCED MATCHING: exact then normalized)
         const availableColumns = Object.keys(responses[0])
-        const questionColumn = availableColumns.find(col => col === question)
+        let questionColumn = availableColumns.find(col => col === question)
         
         if (!questionColumn) {
-          console.log(`❌ Director Analysis: No exact column match for "${question}" in ${month} - SKIPPING`)
+          // Try normalized matching
+          const normalizedSearchQuestion = question.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+          questionColumn = availableColumns.find(col => {
+            const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+            return normalizedCol === normalizedSearchQuestion
+          })
+          
+          if (questionColumn) {
+            console.log(`✅ Director Analysis API: Found normalized column match for "${question}" in ${month}: "${questionColumn}"`)
+          }
+        }
+        
+        if (!questionColumn) {
+          console.log(`❌ Director Analysis API: No exact or normalized column match for "${question}" in ${month} - SKIPPING`)
           console.log(`📋 Available columns in ${month}:`, availableColumns.slice(0, 5))
           continue
         }
@@ -1182,13 +1220,26 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
         continue
       }
       
-      // STRICT MATCHING: Only use EXACT column name match for questions
+      // ENHANCED MATCHING: Try exact match first, then normalized match for questions
       const availableColumns = Object.keys(df[0])
-      const questionKey = availableColumns.find(col => col === questionColumn)
+      let questionKey = availableColumns.find(col => col === questionColumn)
+      
+      if (!questionKey) {
+        // Try normalized matching: normalize both the search question and available columns
+        const normalizedSearchQuestion = questionColumn.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+        questionKey = availableColumns.find(col => {
+          const normalizedCol = col.replace(/\\r\\n/g, ' ').replace(/\r\n/g, ' ').trim()
+          return normalizedCol === normalizedSearchQuestion
+        })
+        
+        if (questionKey) {
+          console.log(`✅ Director Analysis: Found normalized column match for ${month}: "${questionKey}"`)
+        }
+      }
       
       if (!questionKey) {
         // Column doesn't exist - skip this month for this question
-        console.log(`❌ No exact column match for ${month} - SKIPPING director analysis`)
+        console.log(`❌ Director Analysis: No exact or normalized column match for ${month} - SKIPPING`)
         console.log(`📋 Available columns in ${month}:`, availableColumns.slice(0, 5)) // Show first 5 for debugging
         trends[month] = {}
         responseCounts[month] = 0

@@ -33,6 +33,7 @@ export default function DirectorTrendAnalysis({
     'Krishna Kishore Mothukuri', 
     'Mohammed Fayaz',
     'Mujtaba Ahmad',
+    'Diksha Khatri',
     'Others'
   ])
 

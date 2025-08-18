@@ -164,7 +164,8 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
     'Any feedback on Cursor Usage ?',
     'Which mode do you prefer using in Cursor ?',
     'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?',
-    'What are the key points for your preference as Copilot as IDE ?'
+    'What are the key points for your preference as Copilot as IDE ?',
+    'What was your engagement area during this release while not associated with the release deliverables?'
   ];
   
   // Check if this is a text question

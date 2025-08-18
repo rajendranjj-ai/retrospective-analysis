@@ -951,7 +951,123 @@ app.post('/api/export-ppt', async (req, res) => {
   }
 })
 
-// File upload endpoint (for future use)
+// File upload endpoint for release data
+app.post('/api/upload-release', upload.single('file'), (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ error: 'No file uploaded' });
+    }
+
+    console.log('📤 Processing uploaded file:', req.file.originalname);
+    
+    // Validate file is Excel
+    if (!req.file.originalname.endsWith('.xlsx') && !req.file.originalname.endsWith('.xls')) {
+      return res.status(400).json({ error: 'Only Excel files (.xlsx, .xls) are allowed' });
+    }
+
+    // Read the uploaded file to validate structure and extract basic info
+    const workbook = XLSX.readFile(req.file.path);
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+    const data = XLSX.utils.sheet_to_json(worksheet);
+    
+    console.log(`📊 File contains ${data.length} rows of data`);
+    
+    // Try to determine month/year from filename or ask user to rename
+    let month, year;
+    const filename = req.file.originalname;
+    
+    // Pattern matching for month/year in filename
+    const monthPattern = /(January|February|March|April|May|June|July|August|September|October|November|December)/i;
+    const yearPattern = /(20\d{2})/;
+    
+    const monthMatch = filename.match(monthPattern);
+    const yearMatch = filename.match(yearPattern);
+    
+    if (monthMatch && yearMatch) {
+      month = monthMatch[1];
+      year = yearMatch[1];
+    } else {
+      // If we can't extract from filename, use current date as fallback
+      const now = new Date();
+      const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+        'July', 'August', 'September', 'October', 'November', 'December'];
+      month = monthNames[now.getMonth()];
+      year = now.getFullYear().toString();
+      console.log(`⚠️ Could not extract date from filename, using current: ${month} ${year}`);
+    }
+
+    // Create the standardized filename
+    const standardizedFilename = `${month} ${year} Release Retrospective (Responses).xlsx`;
+    const retrospectivesDir = path.join(__dirname, '../Retrospectives');
+    const finalPath = path.join(retrospectivesDir, standardizedFilename);
+    
+    // Ensure Retrospectives directory exists
+    if (!fs.existsSync(retrospectivesDir)) {
+      fs.mkdirSync(retrospectivesDir, { recursive: true });
+    }
+    
+    // Check if file already exists
+    if (fs.existsSync(finalPath)) {
+      // Remove uploaded file from uploads directory
+      fs.unlinkSync(req.file.path);
+      return res.status(400).json({ 
+        error: `A release file for ${month} ${year} already exists. Please delete the existing file first or choose a different month/year.`,
+        existingFile: standardizedFilename
+      });
+    }
+    
+    // Move file to Retrospectives directory with standardized name
+    fs.renameSync(req.file.path, finalPath);
+    
+    console.log(`✅ File saved as: ${standardizedFilename}`);
+    console.log(`📁 Location: ${finalPath}`);
+    
+    // Process the data to get response count
+    let responseCount = 0;
+    try {
+      // Count non-empty rows (excluding header)
+      responseCount = data.filter(row => {
+        // Check if row has any non-empty values
+        return Object.values(row).some(value => 
+          value !== null && value !== undefined && value !== ''
+        );
+      }).length;
+    } catch (error) {
+      console.log('Could not count responses:', error.message);
+    }
+    
+    res.json({ 
+      success: true,
+      message: 'Release data uploaded and processed successfully',
+      filename: standardizedFilename,
+      originalFilename: req.file.originalname,
+      month: month,
+      year: year,
+      responseCount: responseCount,
+      location: 'Retrospectives folder'
+    });
+    
+  } catch (error) {
+    console.error('❌ Error processing uploaded file:', error);
+    
+    // Clean up uploaded file if it still exists
+    if (req.file && fs.existsSync(req.file.path)) {
+      try {
+        fs.unlinkSync(req.file.path);
+      } catch (cleanupError) {
+        console.error('Error cleaning up file:', cleanupError);
+      }
+    }
+    
+    res.status(500).json({ 
+      error: 'Failed to process uploaded file',
+      details: error.message 
+    });
+  }
+});
+
+// Legacy upload endpoint (for backward compatibility)
 app.post('/api/upload', upload.single('file'), (req, res) => {
   try {
     if (!req.file) {

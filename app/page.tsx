@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useRef } from 'react'
-import { RefreshCw, BarChart3, Download } from 'lucide-react'
+import { RefreshCw, BarChart3, Download, Upload } from 'lucide-react'
 import MetricCard from '@/components/MetricCard'
 import QuestionSelector from '@/components/QuestionSelector'
 import TrendChart from '@/components/TrendChart'
@@ -50,6 +50,8 @@ export default function Dashboard() {
   const loadingRef = useRef(loading)
   const [testData, setTestData] = useState<string>('Not loaded')
   const [activeTab, setActiveTab] = useState<'overview' | 'director'>('overview')
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     console.log('useEffect triggered, starting data fetch...')
@@ -236,6 +238,62 @@ export default function Dashboard() {
     console.log('Section changed to:', section)
   }
 
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    // Validate file type
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      alert('Please select an Excel file (.xlsx or .xls)')
+      return
+    }
+
+    try {
+      setUploading(true)
+      console.log('📤 Uploading file:', file.name)
+
+      const formData = new FormData()
+      formData.append('file', file)
+
+      // Environment-aware API base URL
+      const apiBaseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
+        ? 'http://localhost:4005' 
+        : '';
+
+      const response = await fetch(`${apiBaseUrl}/api/upload-release`, {
+        method: 'POST',
+        body: formData
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Upload failed')
+      }
+
+      const result = await response.json()
+      console.log('✅ File uploaded successfully:', result)
+
+      // Refresh the data to include the new file
+      await handleRefresh()
+
+      alert(`🎉 Release data uploaded successfully!
+📁 File: ${result.filename}
+📊 Responses processed: ${result.responseCount || 'Unknown'}
+✅ Data refreshed automatically`)
+
+      // Clear the file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+
+    } catch (error) {
+      console.error('❌ Upload failed:', error)
+      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+    } finally {
+      setUploading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -316,6 +374,29 @@ export default function Dashboard() {
             )}
           </div>
           <div className="flex items-center gap-3">
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".xlsx,.xls"
+              onChange={handleFileUpload}
+              className="hidden"
+            />
+            
+            {/* Upload button */}
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              disabled={uploading || loading}
+              className={`flex items-center gap-2 px-4 py-2 rounded-lg transition-colors ${
+                uploading || loading
+                  ? 'bg-gray-400 text-gray-700 cursor-not-allowed' 
+                  : 'bg-green-600 text-white hover:bg-green-700'
+              }`}
+            >
+              <Upload className={`w-4 h-4 ${uploading ? 'animate-pulse' : ''}`} />
+              {uploading ? 'Uploading...' : 'Add Release Data'}
+            </button>
+
             {/* Export All to PPT button - Hidden per user request
             <button
               onClick={async () => {

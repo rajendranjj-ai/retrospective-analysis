@@ -1282,10 +1282,8 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
       
       if (!questionKey) {
         // Column doesn't exist - skip this month for this question
-        console.log(`❌ Director Analysis: No exact or normalized column match for ${month} - SKIPPING`)
+        console.log(`❌ Director Analysis API: No exact or normalized column match for "${questionColumn}" in ${month} - SKIPPING`)
         console.log(`📋 Available columns in ${month}:`, availableColumns.slice(0, 5)) // Show first 5 for debugging
-        trends[month] = {}
-        responseCounts[month] = 0
         continue
       }
       
@@ -1299,8 +1297,7 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
       console.log(`Director ${targetDirector} responses in ${month}: ${directorResponses.length}`)
       
       if (directorResponses.length === 0) {
-        trends[month] = {}
-        responseCounts[month] = 0
+        console.log(`❌ No responses for director ${targetDirector} in ${month} - SKIPPING`)
         continue
       }
       

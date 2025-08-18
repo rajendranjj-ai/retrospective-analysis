@@ -153,7 +153,9 @@ export default function DirectorTrendAnalysis({
       )}
 
       {/* Trend Analysis Chart */}
-      {directorTrends && !loading && (
+      {directorTrends && !loading && 
+        directorTrends.trends && 
+        Object.keys(directorTrends.trends).length > 0 && (
         <div className="bg-white rounded-lg shadow-sm p-6">
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             Trend Analysis - {selectedDirector}
@@ -167,7 +169,10 @@ export default function DirectorTrendAnalysis({
       )}
 
       {/* No Data State */}
-      {selectedDirector && selectedQuestion && !directorTrends && !loading && (
+      {selectedDirector && selectedQuestion && !loading && 
+        (directorTrends === null || 
+         !directorTrends?.trends || 
+         Object.keys(directorTrends?.trends || {}).length === 0) && (
         <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="text-center h-64 flex items-center justify-center">
             <div>
@@ -176,7 +181,7 @@ export default function DirectorTrendAnalysis({
                 No trend data available for this director and question combination.
               </p>
               <p className="text-gray-500 text-sm mt-2">
-                Try selecting a different question or director.
+                This question may not exist in any releases for the selected director.
               </p>
             </div>
           </div>

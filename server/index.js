@@ -250,6 +250,7 @@ function analyzeQuestionTrends(data, questionColumn) {
         // Don't include this month in trends (skip it completely)
         // This way the frontend will know this question doesn't exist for this release
         responseCounts[month] = 0
+        // Explicitly don't add to trends object - this month won't appear in final data
       }
     } else {
       // No data for this month
@@ -347,19 +348,40 @@ app.get('/api/trends/:question', (req, res) => {
     
     const { trends, responseCounts } = analyzeQuestionTrends(sortedData, question);
     
-    if (Object.keys(trends).length === 0) {
-      return res.status(404).json({ error: 'No trend data available for the selected question' });
+    // Check if the question exists in any month
+    const hasAnyData = Object.values(responseCounts).some(count => count > 0);
+    if (!hasAnyData) {
+      return res.status(404).json({ 
+        error: 'This question does not exist in any release',
+        availableMonths: Object.keys(responseCounts),
+        question: question
+      });
     }
     
-    // Create summary data for export and sorted trends object
+    // Filter out months with no data for this specific question
+    const filteredTrends = {};
+    const filteredResponseCounts = {};
+    
+    Object.keys(trends).forEach(month => {
+      if (responseCounts[month] > 0) {
+        filteredTrends[month] = trends[month];
+        filteredResponseCounts[month] = responseCounts[month];
+      }
+    });
+    
+    // Update trends and responseCounts to only include months with actual data
+    const finalTrends = filteredTrends;
+    const finalResponseCounts = filteredResponseCounts;
+    
+    // Create summary data for export and sorted trends object using filtered data
     const summaryData = [];
     const sortedTrends = {};
     
-    // Sort months chronologically
-    const sortedMonths = Object.keys(trends).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b));
+    // Sort months chronologically (only those with actual data)
+    const sortedMonths = Object.keys(finalTrends).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b));
     
     for (const month of sortedMonths) {
-      const monthData = trends[month];
+      const monthData = finalTrends[month];
       sortedTrends[month] = monthData; // Add to sorted trends object
       
       for (const [answer, percentage] of Object.entries(monthData)) {
@@ -371,27 +393,25 @@ app.get('/api/trends/:question', (req, res) => {
       }
     }
     
-    // Return trends in correct chronological order using array format
+    // Return trends in correct chronological order using array format (filtered data only)
     const orderedTrends = sortedMonths.map(month => ({
       month: month,
-      data: trends[month] || {}
+      data: finalTrends[month] || {}
     }));
     
-    // Also create properly ordered object for backward compatibility
-    const finalTrends = {};
-    sortedMonths.forEach(month => {
-      if (trends[month]) {
-        finalTrends[month] = trends[month];
-      }
+    console.log(`📊 Returning filtered data for question "${question}":`, {
+      monthsWithData: sortedMonths,
+      totalMonthsInSystem: Object.keys(responseCounts).length,
+      monthsFiltered: Object.keys(responseCounts).length - sortedMonths.length
     });
     
     res.json({
       trends: finalTrends,
       orderedTrends: orderedTrends,  // New array format that guarantees order
-      responseCounts,
+      responseCounts: finalResponseCounts,
       summaryData,
       question,
-      monthOrder: sortedMonths  // Explicit month order for frontend
+      monthOrder: sortedMonths  // Explicit month order for frontend (only months with data)
     });
   } catch (error) {
     console.error('Error analyzing trends:', error);

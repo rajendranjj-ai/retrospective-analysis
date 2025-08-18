@@ -272,7 +272,7 @@ export default function Dashboard() {
           errorMessage = errorData.error || 'Upload failed'
         } catch (jsonError) {
           // If we can't parse the JSON response, show a custom message
-          errorMessage = 'Only app owner can upload from background'
+          errorMessage = 'Only app owner can upload from backend!'
         }
         throw new Error(errorMessage)
       }
@@ -298,7 +298,7 @@ export default function Dashboard() {
       
       // Check if it's the JSON parsing error and show custom message
       if (error instanceof Error && error.message.includes('Unexpected end of JSON input')) {
-        alert('Upload failed: Only app owner can upload from background')
+        alert('Upload failed: Only app owner can upload from backend!')
       } else {
         alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
       }

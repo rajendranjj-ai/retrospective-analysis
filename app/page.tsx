@@ -266,8 +266,15 @@ export default function Dashboard() {
       })
 
       if (!response.ok) {
-        const errorData = await response.json()
-        throw new Error(errorData.error || 'Upload failed')
+        let errorMessage = 'Upload failed'
+        try {
+          const errorData = await response.json()
+          errorMessage = errorData.error || 'Upload failed'
+        } catch (jsonError) {
+          // If we can't parse the JSON response, show a custom message
+          errorMessage = 'Only app owner can upload from background'
+        }
+        throw new Error(errorMessage)
       }
 
       const result = await response.json()
@@ -288,7 +295,13 @@ export default function Dashboard() {
 
     } catch (error) {
       console.error('❌ Upload failed:', error)
-      alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      
+      // Check if it's the JSON parsing error and show custom message
+      if (error instanceof Error && error.message.includes('Unexpected end of JSON input')) {
+        alert('Upload failed: Only app owner can upload from background')
+      } else {
+        alert(`Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`)
+      }
     } finally {
       setUploading(false)
     }

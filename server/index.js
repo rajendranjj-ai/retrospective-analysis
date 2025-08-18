@@ -586,16 +586,15 @@ app.get('/api/director-analysis/:question', (req, res) => {
         
         if (!directorColumn) continue
         
-        // Find the question column (exact match or similar)
-        let questionColumn = question
-        if (!responses[0].hasOwnProperty(questionColumn)) {
-          const availableColumns = Object.keys(responses[0])
-          questionColumn = availableColumns.find(col => 
-            col === question || col.toLowerCase().includes(question.toLowerCase().substring(0, 20))
-          )
-        }
+        // Find the question column (STRICT EXACT MATCH ONLY)
+        const availableColumns = Object.keys(responses[0])
+        const questionColumn = availableColumns.find(col => col === question)
         
-        if (!questionColumn) continue
+        if (!questionColumn) {
+          console.log(`❌ Director Analysis: No exact column match for "${question}" in ${month} - SKIPPING`)
+          console.log(`📋 Available columns in ${month}:`, availableColumns.slice(0, 5))
+          continue
+        }
         
         const directorAnalysis = {}
         const allDirectors = new Set()

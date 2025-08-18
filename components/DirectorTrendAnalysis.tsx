@@ -33,8 +33,7 @@ export default function DirectorTrendAnalysis({
     'Krishna Kishore Mothukuri', 
     'Mohammed Fayaz',
     'Mujtaba Ahmad',
-    'Others',
-    'Sandeep Kumar'
+    'Others'
   ])
 
   const handleCategoryChange = (category: string) => {

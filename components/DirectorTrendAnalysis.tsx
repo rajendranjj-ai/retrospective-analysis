@@ -160,6 +160,7 @@ export default function DirectorTrendAnalysis({
           <h2 className="text-xl font-semibold text-gray-900 mb-4">
             Trend Analysis - {selectedDirector}
           </h2>
+          <p className="text-sm text-gray-600 mb-4">Shows responses from {selectedDirector}'s team only. Hover over data points to see counts.</p>
           <TrendChart
             trends={directorTrends.trends}
             questionTitle={selectedQuestion}

@@ -102,8 +102,8 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
     
     const monthDataWithCounts: any = { month }
     
-    // Use response counts from backend if available, otherwise calculate from percentage totals
-    const totalResponses = responseCounts?.[month] || 100 // Default to 100 if not available since percentages should sum to 100
+    // Use question-specific response counts from backend if available, otherwise calculate from percentage totals
+    const totalResponses = responseCounts?.[month] || 100 // This should be question-specific responses, not total survey responses
     
     // Add percentage and count data for answers that exist in this month
     Object.entries(monthData).forEach(([answer, percentage]) => {
@@ -199,6 +199,7 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
                 return (
                   <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
                     <p className="font-semibold text-gray-900">{formatMonthLabel(month)}</p>
+                    <p className="text-xs text-gray-500 mb-2">Question-specific responses:</p>
                     {payload.map((entry: any, index: number) => {
                       const answer = entry.dataKey
                       const percentage = entry.value
@@ -206,7 +207,7 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
                       
                       return (
                         <p key={index} className="text-blue-600">
-                          {answer}: {percentage.toFixed(2)}% ({count})
+                          {answer}: {percentage.toFixed(2)}% ({count} responses)
                         </p>
                       )
                     })}

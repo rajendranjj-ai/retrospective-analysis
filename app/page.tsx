@@ -505,7 +505,8 @@ export default function Dashboard() {
         {/* Release Responses Chart - Hide when question is selected */}
         {!selectedQuestion && (
           <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Total Responses by Release</h2>
+            <h2 className="text-xl font-semibold text-gray-900 mb-4">Total Survey Responses by Release</h2>
+            <p className="text-sm text-gray-600 mb-4">Shows total number of people who completed the survey (may not have answered every question)</p>
             {releaseData && releaseData.length > 0 ? (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
@@ -656,6 +657,7 @@ export default function Dashboard() {
         {trends && (
           <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Trend Analysis</h2>
+            <p className="text-sm text-gray-600 mb-4">Hover over data points to see question-specific response counts (excludes people who skipped this question)</p>
             <TrendChart
               trends={trends.trends}
               questionTitle={selectedQuestion}

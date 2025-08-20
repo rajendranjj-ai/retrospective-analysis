@@ -1,5 +1,91 @@
 import { NextResponse } from 'next/server'
-import { loadRetrospectiveData, getCachedData, setCachedData } from '../../../api/cache.js'
+import { getCachedData, setCachedData } from '../../../api/cache.js'
+import * as XLSX from 'xlsx'
+import path from 'path'
+import fs from 'fs'
+
+// Load retrospective data from the current directory
+function loadRetrospectiveData() {
+  const data = {}
+  
+  // Check both current directory and Retrospectives subfolder
+  const directories = ['.', './Retrospectives']
+  
+  for (const dir of directories) {
+    try {
+      const files = fs.readdirSync(path.join(process.cwd(), dir))
+      
+      const excelFiles = files.filter(file => 
+        file.endsWith('.xlsx') && 
+        file.includes('Retrospective') &&
+        !file.includes('~$') // Exclude temporary Excel files
+      )
+      
+      // Sort files chronologically before processing
+      const sortedFiles = excelFiles.sort((a, b) => {
+        const extractFileOrder = (filename) => {
+          const parts = filename.split(' ')
+          const month = parts[0]
+          const year = parts[1] ? parseInt(parts[1]) : 2024
+          const monthMapping = {
+            'January': 1, 'February': 2, 'March': 3, 'April': 4,
+            'May': 5, 'June': 6, 'July': 7, 'August': 8,
+            'September': 9, 'October': 10, 'November': 11, 'December': 12
+          }
+          const monthOrder = monthMapping[month] || 13
+          return year * 100 + monthOrder
+        }
+        return extractFileOrder(a) - extractFileOrder(b)
+      })
+      
+      for (const file of sortedFiles) {
+        try {
+          // Extract month and year to handle multiple files for same month
+          const parts = file.split(' ')
+          const month = parts[0]
+          const year = parts[1]
+          const monthKey = year ? `${month} ${year}` : month
+          const filePath = path.join(process.cwd(), dir, file)
+          const workbook = XLSX.readFile(filePath)
+          const sheetName = workbook.SheetNames[0]
+          const worksheet = workbook.Sheets[sheetName]
+          
+          // Get the range of the worksheet
+          const range = XLSX.utils.decode_range(worksheet['!ref'])
+          console.log(`File ${file} has range: ${worksheet['!ref']} (${range.e.c + 1} columns, ${range.e.r + 1} rows)`)
+          
+          // Convert to JSON and get headers
+          const jsonData = XLSX.utils.sheet_to_json(worksheet)
+          
+          if (jsonData.length > 0) {
+            // Normalize headers by removing line breaks and trimming
+            const normalizedData = jsonData.map(row => {
+              const normalizedRow = {}
+              for (const [key, value] of Object.entries(row)) {
+                // Normalize header: remove \r\n and trim whitespace
+                const normalizedKey = key.replace(/\r\n/g, ' ').trim()
+                normalizedRow[normalizedKey] = value
+              }
+              return normalizedRow
+            })
+            
+            // Store data for this month (overwrite if duplicate)
+            data[monthKey] = normalizedData
+            console.log(`Loaded ${monthKey}: ${normalizedData.length} responses from ${file}`)
+          }
+        } catch (fileError) {
+          console.error(`Error processing file ${file}:`, fileError)
+        }
+      }
+    } catch (dirError) {
+      if (dirError.code !== 'ENOENT') {
+        console.error(`Error reading directory ${dir}:`, dirError)
+      }
+    }
+  }
+  
+  return data
+}
 
 export async function GET(request, { params }) {
   try {

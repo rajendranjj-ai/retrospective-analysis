@@ -13,6 +13,7 @@ interface DirectorTrendAnalysisProps {
 interface DirectorTrendsData {
   trends: Record<string, Record<string, number>>
   responseCounts: Record<string, number>
+  rawCounts: Record<string, Record<string, number>>
   summaryData: any[]
   question: string
 }

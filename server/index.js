@@ -1894,6 +1894,117 @@ app.post('/api/refresh-questions-from-excel', (req, res) => {
   }
 })
 
+// Get director counts for a specific month
+app.get('/api/director-counts/:month', (req, res) => {
+  try {
+    const { month } = req.params
+    const decodedMonth = decodeURIComponent(month)
+    
+    console.log(`📊 Director counts requested for month: ${decodedMonth}`)
+    
+    // Load data
+    const data = loadRetrospectiveData()
+    
+    // Check if the month exists in our data
+    const monthData = data[decodedMonth]
+    if (!monthData || monthData.length === 0) {
+      return res.json({ 
+        month: decodedMonth,
+        directors: [],
+        message: 'No data found for this month'
+      })
+    }
+
+    // Get director question - look for the standard director question
+    const directorQuestions = [
+      'You are part of which of the following directors org',
+      'Select reporting manager per Sage?'
+    ]
+
+    let directorColumn = null
+    const firstRow = monthData[0] || {}
+    
+    // Find the director column
+    for (const question of directorQuestions) {
+      if (firstRow.hasOwnProperty(question)) {
+        directorColumn = question
+        break
+      }
+    }
+
+    if (!directorColumn) {
+      return res.json({
+        month: decodedMonth,
+        directors: [],
+        message: 'No director information found for this month'
+      })
+    }
+
+    // Count responses by director
+    const directorCounts = {}
+    
+    monthData.forEach(row => {
+      const director = row[directorColumn]
+      if (director && director.trim() !== '') {
+        const cleanDirector = director.trim()
+        directorCounts[cleanDirector] = (directorCounts[cleanDirector] || 0) + 1
+      }
+    })
+
+    // Add total counts and participation rates for specific months
+    const directorTotals = {
+      'August 2025': {
+        'Diksha Khatri': 28,
+        'Jegadeesh Santhana Krishnan': 93,
+        'Krishna Kishore Mothukuri': 14,
+        'Mohammed Fayaz': 65,
+        'Mujtaba Ahmad': 50
+      },
+      'July 2025': {
+        'Diksha Khatri': 17,
+        'Jegadeesh Santhana Krishnan': 84,
+        'Krishna Kishore Mothukuri': 15,
+        'Mohammed Fayaz': 60,
+        'Mujtaba Ahmad': 43
+      },
+      'May 2025': {
+        'Diksha Khatri': 17,
+        'Jegadeesh Santhana Krishnan': 87,
+        'Krishna Kishore Mothukuri': 10,
+        'Mohammed Fayaz': 63,
+        'Mujtaba Ahmad': 42
+      }
+    }
+
+    // Convert to array and sort by count (descending)
+    const directorArray = Object.entries(directorCounts)
+      .map(([director, count]) => {
+        const item = { director, count }
+        
+        // Add total count and participation rate for specific months
+        if (directorTotals[decodedMonth] && directorTotals[decodedMonth][director]) {
+          item.totalCount = directorTotals[decodedMonth][director]
+          item.participationRate = (count / item.totalCount) * 100
+        }
+        
+        return item
+      })
+      .sort((a, b) => b.count - a.count)
+
+    console.log(`✅ Found ${directorArray.length} directors for ${decodedMonth}`)
+    
+    res.json({
+      month: decodedMonth,
+      directors: directorArray,
+      total: directorArray.reduce((sum, item) => sum + item.count, 0)
+    })
+
+  } catch (error) {
+    console.error('Director counts API error:', error)
+    res.status(500).json({ error: error.message })
+  }
+})
+
 // Start server
 app.listen(PORT, () => {
   console.log(`🚀 Retrospective Analyzer Server running on port ${PORT}`);

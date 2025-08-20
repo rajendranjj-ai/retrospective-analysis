@@ -8,7 +8,7 @@ import TrendChart from '@/components/TrendChart'
 import ResponseChart from '@/components/ResponseChart'
 import DirectorAnalysisTable from '@/components/DirectorAnalysisTable'
 import DirectorTrendAnalysis from '@/components/DirectorTrendAnalysis'
-
+import DirectorResponsePopup from '@/components/DirectorResponsePopup'
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Label } from 'recharts'
 
@@ -53,6 +53,12 @@ export default function Dashboard() {
   const [activeTab, setActiveTab] = useState<'overview' | 'director'>('overview')
   const [uploading, setUploading] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  
+  // Director popup state
+  const [showDirectorPopup, setShowDirectorPopup] = useState(false)
+  const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
+  const [directorData, setDirectorData] = useState<Array<{director: string, count: number, totalCount?: number, participationRate?: number}>>([])
+  const [directorLoading, setDirectorLoading] = useState(false)
 
   useEffect(() => {
     console.log('useEffect triggered, starting data fetch...')
@@ -308,6 +314,34 @@ export default function Dashboard() {
     }
   }
 
+  // Handle click on chart data points
+  const handleChartClick = async (data: any, event: any) => {
+    if (!data || !data.activePayload || !data.activePayload[0]) return
+    
+    const clickedMonth = data.activePayload[0].payload.month
+    console.log('Clicked month:', clickedMonth)
+    
+    setSelectedMonth(clickedMonth)
+    setShowDirectorPopup(true)
+    setDirectorLoading(true)
+    setDirectorData([])
+    
+    try {
+      const response = await fetch(`/api/director-counts/${encodeURIComponent(clickedMonth)}`)
+      if (!response.ok) {
+        throw new Error('Failed to fetch director data')
+      }
+      
+      const result = await response.json()
+      setDirectorData(result.directors || [])
+    } catch (error) {
+      console.error('Error fetching director data:', error)
+      setDirectorData([])
+    } finally {
+      setDirectorLoading(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -511,7 +545,7 @@ export default function Dashboard() {
             {releaseData && releaseData.length > 0 ? (
             <div className="h-80">
               <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={releaseData}>
+                <LineChart data={releaseData} onClick={handleChartClick}>
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis 
                   dataKey="month" 
@@ -569,7 +603,6 @@ export default function Dashboard() {
                         <div className="bg-white p-3 border border-gray-200 rounded-lg shadow-lg">
                           <p className="font-semibold text-gray-900">{yearMap[label] || label}</p>
                           <p className="text-blue-600">Total Responses: {data.responses}</p>
-                          <p className="text-green-600">Total Questions: {data.questions}</p>
                         </div>
                       )
                     }
@@ -585,18 +618,10 @@ export default function Dashboard() {
                   activeDot={{ r: 8, stroke: '#3B82F6', strokeWidth: 2 }}
                 >
                   <LabelList 
-                    dataKey="questions" 
+                    dataKey="responses" 
                     position="bottom" 
-                    formatter={(value: number, entry: any) => {
-                      // Find the corresponding data point to get responses count
-                      const dataPoint = (releaseData || []).find((item: any) => item.questions === value);
-                      if (dataPoint) {
-                        return `${dataPoint.responses}(Q:${value})`;
-                      }
-                      return `Q:${value}`;
-                    }}
-                    style={{ fontSize: '11px', fill: '#000000', fontWeight: 'bold' }}
-                    offset={15}
+                    style={{ fontSize: '12px', fill: '#3B82F6', fontWeight: 'bold' }}
+                    offset={10}
                   />
                 </Line>
 
@@ -736,6 +761,15 @@ export default function Dashboard() {
             sections={sections}
           />
         )}
+
+        {/* Director Response Popup */}
+        <DirectorResponsePopup
+          isOpen={showDirectorPopup}
+          onClose={() => setShowDirectorPopup(false)}
+          month={selectedMonth}
+          data={directorData}
+          loading={directorLoading}
+        />
 
       </div>
     </div>

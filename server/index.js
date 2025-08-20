@@ -208,6 +208,7 @@ function extractMonthOrder(monthName) {
 function analyzeQuestionTrends(data, questionColumn) {
   const trends = {}
   const responseCounts = {}
+  const rawResponseCounts = {} // Store original raw counts for each answer
   
   console.log(`🔍 Analyzing question: "${questionColumn}"`)
   
@@ -293,6 +294,7 @@ function analyzeQuestionTrends(data, questionColumn) {
           })
           
           trends[month] = responseData
+          rawResponseCounts[month] = {} // Text questions don't have raw counts in the traditional sense
           responseCounts[month] = totalValidResponses
           console.log(`✅ Processed text question ${month}: ${totalValidResponses} responses, ${uniqueResponses.size} unique responses`)
         } else {
@@ -310,15 +312,19 @@ function analyzeQuestionTrends(data, questionColumn) {
           
           if (totalResponses > 0) {
             const percentages = {}
+            const rawCounts = {}
             for (const [answer, count] of Object.entries(valueCounts)) {
               percentages[answer] = Math.round((count / totalResponses) * 100 * 100) / 100
+              rawCounts[answer] = count // Store original raw counts
             }
             trends[month] = percentages
+            rawResponseCounts[month] = rawCounts // Store raw counts separately
             responseCounts[month] = totalResponses
             console.log(`✅ Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
           } else {
             // Column exists but no valid responses
             trends[month] = {}
+            rawResponseCounts[month] = {}
             responseCounts[month] = 0
             console.log(`⚠️ ${month}: Column exists but no valid responses`)
           }
@@ -343,7 +349,7 @@ function analyzeQuestionTrends(data, questionColumn) {
   console.log(`📈 Final trends months:`, Object.keys(trends))
   console.log(`📊 Final response counts:`, Object.keys(responseCounts))
   
-  return { trends, responseCounts }
+  return { trends, responseCounts, rawResponseCounts }
 }
 
 // Routes
@@ -427,7 +433,7 @@ app.get('/api/trends/:question', (req, res) => {
       sortedData[key] = rawData[key];
     });
     
-    const { trends, responseCounts } = analyzeQuestionTrends(sortedData, question);
+    const { trends, responseCounts, rawResponseCounts } = analyzeQuestionTrends(sortedData, question);
     
     // Check if the question exists in any month
     const hasAnyData = Object.values(responseCounts).some(count => count > 0);
@@ -490,6 +496,7 @@ app.get('/api/trends/:question', (req, res) => {
       trends: finalTrends,
       orderedTrends: orderedTrends,  // New array format that guarantees order
       responseCounts: finalResponseCounts,
+      rawCounts: rawResponseCounts,  // Include original raw counts
       summaryData,
       question,
       monthOrder: sortedMonths  // Explicit month order for frontend (only months with data)
@@ -1230,7 +1237,7 @@ app.get('/api/director-trends/:question', (req, res) => {
       return res.status(404).json({ error: 'No retrospective files found' })
     }
     
-    const { trends, responseCounts } = analyzeDirectorQuestionTrends(data, question, director)
+    const { trends, responseCounts, rawResponseCounts } = analyzeDirectorQuestionTrends(data, question, director)
     
     // Create summary data for the chart and sorted trends object
     const summaryData = []
@@ -1255,6 +1262,7 @@ app.get('/api/director-trends/:question', (req, res) => {
     res.json({
       trends: sortedTrends,
       responseCounts,
+      rawCounts: rawResponseCounts,  // Include original raw counts
       summaryData,
       question: question,
       director: director
@@ -1270,6 +1278,7 @@ app.get('/api/director-trends/:question', (req, res) => {
 function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
   const trends = {}
   const responseCounts = {}
+  const rawResponseCounts = {} // Store original raw counts for each answer
   
   console.log(`Analyzing director trends for: "${targetDirector}" on question: "${questionColumn}"`)
   
@@ -1379,6 +1388,7 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
         })
         
         trends[month] = responseData
+        rawResponseCounts[month] = {} // Text questions don't have raw counts in the traditional sense
         responseCounts[month] = totalValidResponses
         console.log(`Processed text question ${month}: ${totalValidResponses} responses, ${uniqueResponses.size} unique responses`)
       } else {
@@ -1396,11 +1406,14 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
         
         // Convert counts to percentages
         const percentages = {}
+        const rawCounts = {}
         for (const [value, count] of Object.entries(valueCounts)) {
           percentages[value] = (count / totalResponses) * 100
+          rawCounts[value] = count // Store original raw counts
         }
         
         trends[month] = percentages
+        rawResponseCounts[month] = rawCounts // Store raw counts separately
         responseCounts[month] = totalResponses
         
         console.log(`Processed ${month}: ${totalResponses} responses, ${Object.keys(percentages).length} answer types`)
@@ -1408,7 +1421,7 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
     }
   }
   
-  return { trends, responseCounts }
+  return { trends, responseCounts, rawResponseCounts }
 }
 
 // Debug endpoint to check column headers

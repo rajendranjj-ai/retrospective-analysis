@@ -7,9 +7,10 @@ interface TrendChartProps {
   trends: { [month: string]: { [answer: string]: number } } | null
   questionTitle: string
   responseCounts?: { [month: string]: number }
+  rawCounts?: { [month: string]: { [answer: string]: number } }
 }
 
-export default function TrendChart({ trends, questionTitle, responseCounts }: TrendChartProps) {
+export default function TrendChart({ trends, questionTitle, responseCounts, rawCounts }: TrendChartProps) {
   // Questions that should display as tables instead of charts
   const tableQuestions = [
     'Share an interesting use case where Cursor helped you',
@@ -107,7 +108,8 @@ export default function TrendChart({ trends, questionTitle, responseCounts }: Tr
     
     // Add percentage and count data for answers that exist in this month
     Object.entries(monthData).forEach(([answer, percentage]) => {
-      const count = Math.round((percentage / 100) * totalResponses)
+      // Use raw count if available, otherwise calculate from percentage
+      const count = rawCounts?.[month]?.[answer] || Math.round((percentage / 100) * totalResponses)
       monthDataWithCounts[answer] = percentage
       monthDataWithCounts[`${answer}_count`] = count
     })

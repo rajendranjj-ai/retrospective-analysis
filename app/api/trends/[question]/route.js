@@ -117,6 +117,7 @@ function extractMonthOrder(monthName) {
 function analyzeQuestionTrends(data, questionColumn) {
   const trends = {}
   const responseCounts = {}
+  const rawResponseCounts = {} // Store original raw counts for each answer
   
   console.log(`🔍 Next.js: Analyzing question: "${questionColumn}"`)
   
@@ -202,6 +203,7 @@ function analyzeQuestionTrends(data, questionColumn) {
           })
           
           trends[month] = responseData
+          rawResponseCounts[month] = {} // Text questions don't have raw counts in the traditional sense
           responseCounts[month] = totalValidResponses
           console.log(`✅ Next.js: Processed text question ${month}: ${totalValidResponses} responses, ${uniqueResponses.size} unique responses`)
         } else {
@@ -220,15 +222,19 @@ function analyzeQuestionTrends(data, questionColumn) {
           if (totalValidResponses > 0) {
             // Convert counts to percentages
             const percentages = {}
+            const rawCounts = {}
             for (const [answer, count] of Object.entries(answerCounts)) {
               percentages[answer] = Math.round((count / totalValidResponses) * 100 * 100) / 100
+              rawCounts[answer] = count // Store original raw counts
             }
             trends[month] = percentages
+            rawResponseCounts[month] = rawCounts // Store raw counts separately
             responseCounts[month] = totalValidResponses
             console.log(`✅ Next.js: Processed ${month}: ${totalValidResponses} responses, ${Object.keys(percentages).length} answer types`)
           } else {
             // Column exists but no valid responses
             trends[month] = {}
+            rawResponseCounts[month] = {}
             responseCounts[month] = 0
             console.log(`⚠️ Next.js: ${month}: Column exists but no valid responses`)
           }
@@ -251,7 +257,7 @@ function analyzeQuestionTrends(data, questionColumn) {
   console.log(`📈 Next.js: Final trends months:`, Object.keys(trends))
   console.log(`📊 Next.js: Final response counts:`, Object.keys(responseCounts))
   
-  return { trends, responseCounts }
+  return { trends, responseCounts, rawResponseCounts }
 }
 
 export async function GET(request, { params }) {
@@ -268,7 +274,7 @@ export async function GET(request, { params }) {
       return NextResponse.json({ error: 'No data found' }, { status: 404 })
     }
     
-    const { trends, responseCounts } = analyzeQuestionTrends(data, question)
+    const { trends, responseCounts, rawResponseCounts } = analyzeQuestionTrends(data, question)
     
     // Get all months and sort them
     const allMonths = Object.keys(data).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
@@ -284,6 +290,7 @@ export async function GET(request, { params }) {
       question,
       trends: sortedTrends,
       responseCounts,
+      rawCounts: rawResponseCounts,  // Include original raw counts
       months: allMonths
     }
     

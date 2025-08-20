@@ -165,6 +165,7 @@ export default function DirectorTrendAnalysis({
             trends={directorTrends.trends}
             questionTitle={selectedQuestion}
             responseCounts={directorTrends.responseCounts}
+            rawCounts={directorTrends.rawCounts}
           />
         </div>
       )}

@@ -27,6 +27,7 @@ interface Summary {
 interface TrendsData {
   trends: Record<string, Record<string, number>>
   responseCounts: Record<string, number>
+  rawCounts: Record<string, Record<string, number>>
   summaryData: SummaryData[]
   question: string
 }
@@ -662,6 +663,7 @@ export default function Dashboard() {
               trends={trends.trends}
               questionTitle={selectedQuestion}
               responseCounts={trends.responseCounts}
+              rawCounts={trends.rawCounts}
             />
           </div>
         )}

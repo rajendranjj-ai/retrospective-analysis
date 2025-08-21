@@ -8,8 +8,19 @@ interface LoginProps {
 
 export default function Login({ onLoginRedirect }: LoginProps) {
   const handleGoogleLogin = () => {
+    // Determine API base URL based on environment
+    const getAPIBaseURL = () => {
+      // Check if we're in development
+      if (window.location.hostname === 'localhost') {
+        return 'http://localhost:4005'
+      }
+      
+      // In production, use the same origin (Vercel handles routing)
+      return window.location.origin
+    }
+
     // Redirect to backend Google OAuth
-    window.location.href = 'http://localhost:4005/auth/google'
+    window.location.href = `${getAPIBaseURL()}/auth/google`
   }
 
   return (

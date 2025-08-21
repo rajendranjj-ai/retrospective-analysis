@@ -31,9 +31,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
+  // Determine API base URL based on environment
+  const getAPIBaseURL = () => {
+    if (typeof window === 'undefined') return '' // Server-side
+    
+    // Check if we're in development
+    if (window.location.hostname === 'localhost') {
+      return 'http://localhost:4005'
+    }
+    
+    // In production, use the same origin (Vercel handles routing)
+    return window.location.origin
+  }
+
+  const apiBaseURL = getAPIBaseURL()
+
   const checkAuth = async () => {
     try {
-      const response = await fetch('http://localhost:4005/auth/user', {
+      const response = await fetch(`${apiBaseURL}/auth/user`, {
         credentials: 'include',
         headers: {
           'Content-Type': 'application/json',
@@ -59,12 +74,12 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const login = () => {
-    window.location.href = 'http://localhost:4005/auth/google'
+    window.location.href = `${apiBaseURL}/auth/google`
   }
 
   const logout = async () => {
     try {
-      const response = await fetch('http://localhost:4005/auth/logout', {
+      const response = await fetch(`${apiBaseURL}/auth/logout`, {
         method: 'POST',
         credentials: 'include',
         headers: {

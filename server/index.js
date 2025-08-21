@@ -8,15 +8,44 @@ const PptxGenJS = require('pptxgenjs');
 const session = require('express-session');
 const passport = require('../config/passport');
 const authConfig = require('../config/auth');
-const { requireAuth, requireApiAuth, optionalAuth, requireAdmin } = require('../middleware/auth');
+const { requireAuth, requireApiAuth, optionalAuth, requireCompanyDomain, requireAdmin } = require('../middleware/auth');
 
 const app = express();
 const PORT = 4005;
 
-// Middleware
+// Middleware - CORS Configuration
+const allowedOrigins = [
+  'http://localhost:3002',
+  'http://localhost:3000',
+  authConfig.client.url
+];
+
+// Add Vercel URLs if in production
+if (process.env.VERCEL_URL) {
+  allowedOrigins.push(`https://${process.env.VERCEL_URL}`);
+}
+
+// Add custom domain if specified
+if (process.env.CLIENT_URL && !allowedOrigins.includes(process.env.CLIENT_URL)) {
+  allowedOrigins.push(process.env.CLIENT_URL);
+}
+
 app.use(cors({
-  origin: ['http://localhost:3002', 'http://localhost:3000'],
-  credentials: true
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps or curl requests)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.includes(origin)) {
+      return callback(null, true);
+    }
+    
+    console.log('🚫 CORS blocked origin:', origin);
+    console.log('✅ Allowed origins:', allowedOrigins);
+    return callback(new Error('Not allowed by CORS'));
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'Cookie']
 }));
 app.use(express.json());
 
@@ -2067,11 +2096,25 @@ app.get('/auth/user', (req, res) => {
   }
 });
 
-// Protected test route
-app.get('/auth/test', requireAuth, (req, res) => {
+// Protected test route - requires company domain
+app.get('/auth/test', requireCompanyDomain, (req, res) => {
   res.json({
-    message: 'Authentication working!',
-    user: req.user
+    message: 'Company authentication working!',
+    user: req.user,
+    company: {
+      domain: authConfig.company.domain,
+      userDomain: req.user.email.split('@')[1]
+    }
+  });
+});
+
+// Company info endpoint
+app.get('/auth/company-info', (req, res) => {
+  res.json({
+    companyDomain: authConfig.company.domain,
+    restrictionEnabled: !!authConfig.company.domain,
+    allowedEmails: authConfig.company.allowedEmails.length,
+    environment: process.env.NODE_ENV
   });
 });
 

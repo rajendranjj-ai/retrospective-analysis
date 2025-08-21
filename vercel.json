@@ -1,7 +1,20 @@
 {
+  "version": 2,
+  "builds": [
+    {
+      "src": "package.json",
+      "use": "@vercel/node"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/auth/(.*)",
+      "destination": "/api/auth/$1"
+    }
+  ],
   "functions": {
     "app/api/**/*.js": {
-      "maxDuration": 60
+      "maxDuration": 30
     }
   }
 }

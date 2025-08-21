@@ -457,7 +457,7 @@ app.get('/api/data', (req, res) => {
   }
 });
 
-app.get('/api/trends/:question', (req, res) => {
+app.get('/api/trends/:question', requireAuth, (req, res) => {
   try {
     const { question } = req.params;
     const rawData = loadRetrospectiveData();
@@ -685,7 +685,7 @@ app.get('/api/releases', (req, res) => {
 })
 
 // API endpoint to get director-specific data for a question
-app.get('/api/director-analysis/:question', (req, res) => {
+app.get('/api/director-analysis/:question', requireAuth, (req, res) => {
   try {
     const { question } = req.params
     const data = loadRetrospectiveData()
@@ -815,8 +815,8 @@ app.get('/api/director-analysis/:question', (req, res) => {
   }
 })
 
-// PowerPoint export endpoint for all questions
-app.post('/api/export-all-ppt', async (req, res) => {
+// PowerPoint export endpoint for all questions - PROTECTED: Company domain required
+app.post('/api/export-all-ppt', requireCompanyDomain, async (req, res) => {
   try {
     console.log('Starting export all PowerPoint...')
     const data = loadRetrospectiveData()
@@ -1007,8 +1007,8 @@ app.post('/api/export-all-ppt', async (req, res) => {
   }
 })
 
-// PowerPoint export endpoint for single question
-app.post('/api/export-ppt', async (req, res) => {
+// PowerPoint export endpoint for single question - PROTECTED: Company domain required
+app.post('/api/export-ppt', requireCompanyDomain, async (req, res) => {
   try {
     const { question, trends, directorAnalysis } = req.body
     
@@ -1125,8 +1125,8 @@ app.post('/api/export-ppt', async (req, res) => {
   }
 })
 
-// File upload endpoint for release data
-app.post('/api/upload-release', upload.single('file'), (req, res) => {
+// File upload endpoint for release data - PROTECTED: Company domain required
+app.post('/api/upload-release', requireCompanyDomain, upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'No file uploaded' });
@@ -1259,8 +1259,8 @@ app.post('/api/upload', upload.single('file'), (req, res) => {
   }
 });
 
-// Director-specific trends API endpoint
-app.get('/api/director-trends/:question', (req, res) => {
+// Director-specific trends API endpoint - PROTECTED: Authentication required
+app.get('/api/director-trends/:question', requireAuth, (req, res) => {
   try {
     const { question } = req.params
     const { director } = req.query
@@ -1485,8 +1485,8 @@ app.get('/api/debug-headers', (req, res) => {
   }
 })
 
-// Refresh data endpoint to reload Excel files
-app.post('/api/refresh', (req, res) => {
+// Refresh data endpoint to reload Excel files - PROTECTED: Company domain required
+app.post('/api/refresh', requireCompanyDomain, (req, res) => {
   try {
     console.log('🔄 NODE.JS SERVER REFRESH - Clearing all stored metrics and reloading Excel files...')
     
@@ -1815,8 +1815,8 @@ app.get('/api/questions-by-section/:section', (req, res) => {
   }
 })
 
-// API endpoint to refresh questions from Excel files and update the txt file
-app.post('/api/refresh-questions-from-excel', (req, res) => {
+// API endpoint to refresh questions from Excel files and update the txt file - PROTECTED: Company domain required
+app.post('/api/refresh-questions-from-excel', requireCompanyDomain, (req, res) => {
   try {
     console.log('🔄 REFRESH QUESTIONS: Extracting fresh questions from Excel files...')
     
@@ -1934,8 +1934,8 @@ app.post('/api/refresh-questions-from-excel', (req, res) => {
   }
 })
 
-// Get director counts for a specific month
-app.get('/api/director-counts/:month', (req, res) => {
+// Get director counts for a specific month - PROTECTED: Authentication required
+app.get('/api/director-counts/:month', requireAuth, (req, res) => {
   try {
     const { month } = req.params
     const decodedMonth = decodeURIComponent(month)

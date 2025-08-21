@@ -211,7 +211,7 @@ After deployment, update your Google Cloud OAuth settings:
 ```javascript
 // In middleware/auth.js
 requireCompanyDomain - Checks user's email domain
-Environment: COMPANY_DOMAIN=your-company.com
+Environment: COMPANY_DOMAIN=celigo.com
 Fallback: ALLOWED_EMAILS for exceptions
 ```
 

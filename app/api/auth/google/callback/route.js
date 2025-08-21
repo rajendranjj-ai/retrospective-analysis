@@ -9,10 +9,12 @@ export async function GET(request) {
     const code = searchParams.get('code');
     const error = searchParams.get('error');
     
+    console.log('🔍 OAuth callback received:', { code: !!code, error });
+    
     // Handle OAuth error
     if (error) {
       console.error('Google OAuth error:', error);
-      return NextResponse.redirect(new URL('/login?error=oauth_failed', request.url));
+      return NextResponse.redirect('https://retrospective-analysis.vercel.app/login?error=oauth_failed');
     }
     
     // Handle OAuth success code
@@ -47,10 +49,11 @@ export async function GET(request) {
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text();
           console.error('Token exchange failed:', errorText);
-          return NextResponse.redirect(new URL('/login?error=token_exchange_failed', request.url));
+          return NextResponse.redirect('https://retrospective-analysis.vercel.app/login?error=token_exchange_failed');
         }
         
         const tokens = await tokenResponse.json();
+        console.log('✅ Token exchange successful');
         
         // Get user profile from Google
         const profileResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokens.access_token}`);
@@ -58,7 +61,7 @@ export async function GET(request) {
         if (!profileResponse.ok) {
           const errorText = await profileResponse.text();
           console.error('Profile fetch failed:', errorText);
-          return NextResponse.redirect(new URL('/login?error=profile_fetch_failed', request.url));
+          return NextResponse.redirect('https://retrospective-analysis.vercel.app/login?error=profile_fetch_failed');
         }
         
         const profile = await profileResponse.json();
@@ -75,19 +78,23 @@ export async function GET(request) {
           
           if (userDomain !== companyDomain && !allowedEmails.includes(profile.email)) {
             console.log('🚫 Domain access denied for:', profile.email);
-            return NextResponse.redirect(new URL('/login?error=domain_not_allowed', request.url));
+            return NextResponse.redirect('https://retrospective-analysis.vercel.app/login?error=domain_not_allowed');
           }
         }
         
-        // Create a simple authentication response
-        const response = NextResponse.redirect(new URL('/?auth=success', request.url));
+        // Create a simple authentication response with absolute URL
+        const dashboardUrl = 'https://retrospective-analysis.vercel.app/?auth=success';
+        console.log('✅ Redirecting to dashboard:', dashboardUrl);
+        
+        const response = NextResponse.redirect(dashboardUrl);
         
         // Set a simple auth cookie (for demo purposes)
         response.cookies.set('auth_user', profile.email, {
           httpOnly: true,
-          secure: process.env.NODE_ENV === 'production',
+          secure: true, // Always secure in production
           sameSite: 'lax',
-          maxAge: 60 * 60 * 24 // 24 hours
+          maxAge: 60 * 60 * 24, // 24 hours
+          path: '/', // Ensure cookie is available across the app
         });
         
         console.log('✅ Setting auth cookie and redirecting to dashboard');
@@ -95,15 +102,16 @@ export async function GET(request) {
         
       } catch (tokenError) {
         console.error('OAuth token exchange error:', tokenError);
-        return NextResponse.redirect(new URL('/login?error=token_exchange_failed', request.url));
+        return NextResponse.redirect('https://retrospective-analysis.vercel.app/login?error=token_exchange_failed');
       }
     }
     
     // No code or error - redirect to login
-    return NextResponse.redirect(new URL('/login', request.url));
+    console.log('⚠️ No code or error received, redirecting to login');
+    return NextResponse.redirect('https://retrospective-analysis.vercel.app/login');
     
   } catch (error) {
     console.error('OAuth callback error:', error);
-    return NextResponse.redirect(new URL('/login?error=callback_failed', request.url));
+    return NextResponse.redirect('https://retrospective-analysis.vercel.app/login?error=callback_failed');
   }
 }

@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 export async function GET(request) {
   try {
     const clientId = process.env.GOOGLE_CLIENT_ID;
     
     if (!clientId) {
       console.error('Google OAuth client ID not configured');
-      return NextResponse.redirect('/login?error=oauth_not_configured');
+      return NextResponse.redirect(new URL('/login?error=oauth_not_configured', request.url));
     }
     
     // Get the current hostname for the redirect URI
@@ -31,6 +34,6 @@ export async function GET(request) {
     
   } catch (error) {
     console.error('Google OAuth initiation error:', error);
-    return NextResponse.redirect('/login?error=oauth_init_failed');
+    return NextResponse.redirect(new URL('/login?error=oauth_init_failed', request.url));
   }
 }

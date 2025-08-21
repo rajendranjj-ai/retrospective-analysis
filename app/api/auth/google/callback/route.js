@@ -1,5 +1,8 @@
 import { NextResponse } from 'next/server';
 
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
 export async function GET(request) {
   try {
     const { searchParams } = new URL(request.url);
@@ -9,7 +12,7 @@ export async function GET(request) {
     // Handle OAuth error
     if (error) {
       console.error('Google OAuth error:', error);
-      return NextResponse.redirect('/login?error=oauth_failed');
+      return NextResponse.redirect(new URL('/login?error=oauth_failed', request.url));
     }
     
     // Handle OAuth success code
@@ -40,7 +43,7 @@ export async function GET(request) {
         if (!tokenResponse.ok) {
           const errorText = await tokenResponse.text();
           console.error('Token exchange failed:', errorText);
-          return NextResponse.redirect('/login?error=token_exchange_failed');
+          return NextResponse.redirect(new URL('/login?error=token_exchange_failed', request.url));
         }
         
         const tokens = await tokenResponse.json();
@@ -51,7 +54,7 @@ export async function GET(request) {
         if (!profileResponse.ok) {
           const errorText = await profileResponse.text();
           console.error('Profile fetch failed:', errorText);
-          return NextResponse.redirect('/login?error=profile_fetch_failed');
+          return NextResponse.redirect(new URL('/login?error=profile_fetch_failed', request.url));
         }
         
         const profile = await profileResponse.json();
@@ -68,12 +71,12 @@ export async function GET(request) {
           
           if (userDomain !== companyDomain && !allowedEmails.includes(profile.email)) {
             console.log('🚫 Domain access denied for:', profile.email);
-            return NextResponse.redirect('/login?error=domain_not_allowed');
+            return NextResponse.redirect(new URL('/login?error=domain_not_allowed', request.url));
           }
         }
         
         // Create a simple authentication response
-        const response = NextResponse.redirect('/?auth=success');
+        const response = NextResponse.redirect(new URL('/?auth=success', request.url));
         
         // Set a simple auth cookie (for demo purposes)
         response.cookies.set('auth_user', profile.email, {
@@ -88,15 +91,15 @@ export async function GET(request) {
         
       } catch (tokenError) {
         console.error('OAuth token exchange error:', tokenError);
-        return NextResponse.redirect('/login?error=token_exchange_failed');
+        return NextResponse.redirect(new URL('/login?error=token_exchange_failed', request.url));
       }
     }
     
     // No code or error - redirect to login
-    return NextResponse.redirect('/login');
+    return NextResponse.redirect(new URL('/login', request.url));
     
   } catch (error) {
     console.error('OAuth callback error:', error);
-    return NextResponse.redirect('/login?error=callback_failed');
+    return NextResponse.redirect(new URL('/login?error=callback_failed', request.url));
   }
 }

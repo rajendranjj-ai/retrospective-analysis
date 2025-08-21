@@ -18,10 +18,14 @@ export async function GET(request) {
     // Handle OAuth success code
     if (code) {
       try {
-        // Get the current hostname for the redirect URI
-        const host = request.headers.get('host');
-        const protocol = host?.includes('localhost') ? 'http' : 'https';
-        const redirectUri = `${protocol}://${host}/api/auth/google/callback`;
+        // Use the same fixed redirect URI that was used in the initiation
+        let redirectUri;
+        
+        if (process.env.NODE_ENV === 'development') {
+          redirectUri = 'http://localhost:3002/api/auth/google/callback';
+        } else {
+          redirectUri = 'https://retrospective-analysis.vercel.app/api/auth/google/callback';
+        }
         
         console.log('🔍 Using redirect URI:', redirectUri);
         
@@ -81,7 +85,7 @@ export async function GET(request) {
         // Set a simple auth cookie (for demo purposes)
         response.cookies.set('auth_user', profile.email, {
           httpOnly: true,
-          secure: protocol === 'https',
+          secure: process.env.NODE_ENV === 'production',
           sameSite: 'lax',
           maxAge: 60 * 60 * 24 // 24 hours
         });

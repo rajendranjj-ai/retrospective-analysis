@@ -12,12 +12,20 @@ export async function GET(request) {
       return NextResponse.redirect(new URL('/login?error=oauth_not_configured', request.url));
     }
     
-    // Get the current hostname for the redirect URI
-    const host = request.headers.get('host');
-    const protocol = host?.includes('localhost') ? 'http' : 'https';
-    const redirectUri = `${protocol}://${host}/api/auth/google/callback`;
+    // Use a fixed redirect URI for production to ensure consistency
+    let redirectUri;
+    
+    // Check if we're in development or production
+    if (process.env.NODE_ENV === 'development') {
+      // Development: use localhost
+      redirectUri = 'http://localhost:3002/api/auth/google/callback';
+    } else {
+      // Production: use the exact URL configured in Google Cloud Console
+      redirectUri = 'https://retrospective-analysis.vercel.app/api/auth/google/callback';
+    }
     
     console.log('🔍 OAuth initiation - redirect URI:', redirectUri);
+    console.log('🔍 Environment:', process.env.NODE_ENV);
     
     // Build Google OAuth URL
     const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');

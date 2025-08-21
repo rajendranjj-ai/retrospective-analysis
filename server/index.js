@@ -5,6 +5,10 @@ const XLSX = require('xlsx');
 const path = require('path');
 const fs = require('fs');
 const PptxGenJS = require('pptxgenjs');
+const session = require('express-session');
+const passport = require('../config/passport');
+const authConfig = require('../config/auth');
+const { requireAuth, requireApiAuth, optionalAuth, requireAdmin } = require('../middleware/auth');
 
 const app = express();
 const PORT = 4005;
@@ -15,6 +19,13 @@ app.use(cors({
   credentials: true
 }));
 app.use(express.json());
+
+// Session configuration
+app.use(session(authConfig.session));
+
+// Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
 
 // Configure multer for file uploads
 const storage = multer.diskStorage({
@@ -2004,6 +2015,65 @@ app.get('/api/director-counts/:month', (req, res) => {
     res.status(500).json({ error: error.message })
   }
 })
+
+// ========================
+// AUTHENTICATION ROUTES
+// ========================
+
+// Google OAuth login
+app.get('/auth/google', 
+  passport.authenticate('google', { 
+    scope: ['profile', 'email'] 
+  })
+);
+
+// Google OAuth callback
+app.get('/auth/google/callback',
+  passport.authenticate('google', { 
+    failureRedirect: `${authConfig.client.url}/login?error=oauth_failed`,
+    successRedirect: `${authConfig.client.url}?auth=success`
+  })
+);
+
+// Logout
+app.post('/auth/logout', (req, res) => {
+  const userEmail = req.user?.email;
+  req.logout((err) => {
+    if (err) {
+      console.error('❌ Logout error:', err);
+      return res.status(500).json({ error: 'Logout failed' });
+    }
+    
+    console.log('👋 User logged out:', userEmail);
+    res.json({ 
+      success: true, 
+      message: 'Logged out successfully' 
+    });
+  });
+});
+
+// Check authentication status
+app.get('/auth/user', (req, res) => {
+  if (req.isAuthenticated && req.isAuthenticated()) {
+    res.json({
+      authenticated: true,
+      user: req.user
+    });
+  } else {
+    res.json({
+      authenticated: false,
+      user: null
+    });
+  }
+});
+
+// Protected test route
+app.get('/auth/test', requireAuth, (req, res) => {
+  res.json({
+    message: 'Authentication working!',
+    user: req.user
+  });
+});
 
 // Start server
 app.listen(PORT, () => {

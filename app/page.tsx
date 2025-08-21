@@ -9,6 +9,9 @@ import ResponseChart from '@/components/ResponseChart'
 import DirectorAnalysisTable from '@/components/DirectorAnalysisTable'
 import DirectorTrendAnalysis from '@/components/DirectorTrendAnalysis'
 import DirectorResponsePopup from '@/components/DirectorResponsePopup'
+import Login from '@/components/Login'
+import UserProfile from '@/components/UserProfile'
+import { useAuth } from '@/contexts/AuthContext'
 
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LabelList, Label } from 'recharts'
 
@@ -33,6 +36,8 @@ interface TrendsData {
 }
 
 export default function Dashboard() {
+  const { isAuthenticated, isLoading: authLoading, user } = useAuth()
+
   const [summary, setSummary] = useState<Summary>({
     totalResponses: 0,
     totalQuestions: 0,
@@ -342,6 +347,23 @@ export default function Dashboard() {
     }
   }
 
+  // Show loading spinner while checking authentication
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Checking authentication...</p>
+        </div>
+      </div>
+    )
+  }
+
+  // Show login screen if not authenticated
+  if (!isAuthenticated) {
+    return <Login />
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 p-6">
@@ -493,6 +515,9 @@ export default function Dashboard() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
               {loading ? 'Refreshing...' : 'Refresh Data'}
             </button>
+
+            {/* User Profile */}
+            <UserProfile />
           </div>
         </div>
 

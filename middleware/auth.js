@@ -82,10 +82,10 @@ function requireAdmin(req, res, next) {
     return res.status(401).json({ error: 'Authentication required' });
   }
 
-  // Example: Only allow users from specific domain or email addresses
+  // Celigo admin check - restrict to Celigo domain and specific admins
   const user = req.user;
-  const allowedDomains = ['your-company.com']; // Customize this
-  const allowedEmails = ['admin@example.com']; // Customize this
+  const allowedDomains = ['celigo.com']; // Celigo employees only
+  const allowedEmails = ['admin@celigo.com']; // Specific Celigo admins
   
   if (allowedEmails.includes(user.email)) {
     return next();

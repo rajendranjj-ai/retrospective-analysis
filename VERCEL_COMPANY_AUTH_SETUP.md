@@ -78,7 +78,7 @@ SERVER_URL=https://your-app-name.vercel.app
 NODE_ENV=production
 
 # Company Domain (for restricting access)
-COMPANY_DOMAIN=your-company.com
+COMPANY_DOMAIN=celigo.com
 ```
 
 ### Step 4: Update Domain Restrictions
@@ -131,7 +131,7 @@ I'll create a `vercel.json` file to ensure proper deployment:
 - **HTTPS Only**: Force HTTPS in production
 
 ### Access Control Options:
-1. **Domain-based**: Only @company.com emails
+1. **Domain-based**: Only @celigo.com emails
 2. **Whitelist**: Specific email addresses only
 3. **Hybrid**: Domain + specific external emails
 
@@ -175,8 +175,8 @@ I'll create a `vercel.json` file to ensure proper deployment:
    SESSION_SECRET=your_super_secure_random_production_secret
    CLIENT_URL=https://your-app-name.vercel.app
    SERVER_URL=https://your-app-name.vercel.app
-   COMPANY_DOMAIN=your-company.com
-   ALLOWED_EMAILS=admin1@company.com,admin2@company.com
+   COMPANY_DOMAIN=celigo.com
+   ALLOWED_EMAILS=admin1@celigo.com,admin2@celigo.com
    NODE_ENV=production
    VERCEL=1
    ```
@@ -248,4 +248,6 @@ Fallback: ALLOWED_EMAILS for exceptions
 - [ ] Company employees can login
 - [ ] Non-company users blocked
 
-**What's your company domain?** I'll update the authentication middleware to restrict access to your employees only.
+**✅ Your company domain has been configured: celigo.com**
+
+Only Celigo employees with @celigo.com emails will be able to access the application. External users will be automatically blocked.

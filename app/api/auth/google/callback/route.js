@@ -9,21 +9,19 @@ export async function GET(request) {
     // Handle OAuth error
     if (error) {
       console.error('Google OAuth error:', error);
-      const clientUrl = process.env.CLIENT_URL || 
-        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3002');
-      return NextResponse.redirect(`${clientUrl}/login?error=oauth_failed`);
+      return NextResponse.redirect('/login?error=oauth_failed');
     }
     
     // Handle OAuth success code
     if (code) {
-      // In development, redirect to Express server
-      if (process.env.NODE_ENV === 'development') {
-        return NextResponse.redirect(`http://localhost:4005/auth/google/callback?code=${code}`);
-      }
-      
-      // In production (Vercel), we would need to implement OAuth token exchange
-      // For now, this is a simplified version that would need full OAuth implementation
       try {
+        // Get the current hostname for the redirect URI
+        const host = request.headers.get('host');
+        const protocol = host?.includes('localhost') ? 'http' : 'https';
+        const redirectUri = `${protocol}://${host}/api/auth/google/callback`;
+        
+        console.log('🔍 Using redirect URI:', redirectUri);
+        
         // Exchange code for tokens with Google
         const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
           method: 'POST',
@@ -35,12 +33,14 @@ export async function GET(request) {
             client_secret: process.env.GOOGLE_CLIENT_SECRET,
             code: code,
             grant_type: 'authorization_code',
-            redirect_uri: `${process.env.CLIENT_URL || `https://${process.env.VERCEL_URL}`}/api/auth/google/callback`,
+            redirect_uri: redirectUri,
           }),
         });
         
         if (!tokenResponse.ok) {
-          throw new Error('Token exchange failed');
+          const errorText = await tokenResponse.text();
+          console.error('Token exchange failed:', errorText);
+          return NextResponse.redirect('/login?error=token_exchange_failed');
         }
         
         const tokens = await tokenResponse.json();
@@ -49,10 +49,13 @@ export async function GET(request) {
         const profileResponse = await fetch(`https://www.googleapis.com/oauth2/v2/userinfo?access_token=${tokens.access_token}`);
         
         if (!profileResponse.ok) {
-          throw new Error('Profile fetch failed');
+          const errorText = await profileResponse.text();
+          console.error('Profile fetch failed:', errorText);
+          return NextResponse.redirect('/login?error=profile_fetch_failed');
         }
         
         const profile = await profileResponse.json();
+        console.log('✅ Google OAuth successful for user:', profile.email);
         
         // Check company domain restriction
         const companyDomain = process.env.COMPANY_DOMAIN;
@@ -61,35 +64,39 @@ export async function GET(request) {
         
         if (companyDomain) {
           const userDomain = profile.email.split('@')[1];
+          console.log('🔍 Checking domain access:', { userDomain, companyDomain, allowedEmails });
+          
           if (userDomain !== companyDomain && !allowedEmails.includes(profile.email)) {
-            const clientUrl = process.env.CLIENT_URL || `https://${process.env.VERCEL_URL}`;
-            return NextResponse.redirect(`${clientUrl}/login?error=domain_not_allowed`);
+            console.log('🚫 Domain access denied for:', profile.email);
+            return NextResponse.redirect('/login?error=domain_not_allowed');
           }
         }
         
-        // For serverless deployment, we would store session in a database or JWT
-        // This is a simplified version
-        console.log('✅ Google OAuth successful for user:', profile.email);
+        // Create a simple authentication response
+        const response = NextResponse.redirect('/?auth=success');
         
-        const clientUrl = process.env.CLIENT_URL || `https://${process.env.VERCEL_URL}`;
-        return NextResponse.redirect(`${clientUrl}?auth=success`);
+        // Set a simple auth cookie (for demo purposes)
+        response.cookies.set('auth_user', profile.email, {
+          httpOnly: true,
+          secure: protocol === 'https',
+          sameSite: 'lax',
+          maxAge: 60 * 60 * 24 // 24 hours
+        });
+        
+        console.log('✅ Setting auth cookie and redirecting to dashboard');
+        return response;
         
       } catch (tokenError) {
         console.error('OAuth token exchange error:', tokenError);
-        const clientUrl = process.env.CLIENT_URL || `https://${process.env.VERCEL_URL}`;
-        return NextResponse.redirect(`${clientUrl}/login?error=token_exchange_failed`);
+        return NextResponse.redirect('/login?error=token_exchange_failed');
       }
     }
     
     // No code or error - redirect to login
-    const clientUrl = process.env.CLIENT_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3002');
-    return NextResponse.redirect(`${clientUrl}/login`);
+    return NextResponse.redirect('/login');
     
   } catch (error) {
     console.error('OAuth callback error:', error);
-    const clientUrl = process.env.CLIENT_URL || 
-      (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'http://localhost:3002');
-    return NextResponse.redirect(`${clientUrl}/login?error=callback_failed`);
+    return NextResponse.redirect('/login?error=callback_failed');
   }
 }

@@ -48,22 +48,53 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const checkAuth = async () => {
     try {
-      const response = await fetch(`${apiBaseURL}/auth/user`, {
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      if (response.ok) {
-        const data = await response.json()
-        if (data.authenticated && data.user) {
-          setUser(data.user)
+      // In development, use the Express server
+      if (window.location.hostname === 'localhost') {
+        const response = await fetch(`${apiBaseURL}/auth/user`, {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.authenticated && data.user) {
+            setUser(data.user)
+          } else {
+            setUser(null)
+          }
         } else {
           setUser(null)
         }
       } else {
-        setUser(null)
+        // In production (Vercel), use the new auth check endpoint
+        const response = await fetch('/api/auth/check', {
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        if (response.ok) {
+          const data = await response.json()
+          if (data.authenticated && data.user) {
+            // Create a user object from the email
+            setUser({
+              id: data.user.email,
+              email: data.user.email,
+              name: data.user.email.split('@')[0],
+              firstName: data.user.email.split('@')[0],
+              lastName: '',
+              picture: '',
+              provider: 'google'
+            })
+          } else {
+            setUser(null)
+          }
+        } else {
+          setUser(null)
+        }
       }
     } catch (error) {
       console.error('Auth check failed:', error)
@@ -74,20 +105,34 @@ export function AuthProvider({ children }: AuthProviderProps) {
   }
 
   const login = () => {
-    window.location.href = `${apiBaseURL}/auth/google`
+    // In development, use Express server
+    if (window.location.hostname === 'localhost') {
+      window.location.href = `${apiBaseURL}/auth/google`
+    } else {
+      // In production, use Vercel OAuth
+      window.location.href = '/api/auth/google'
+    }
   }
 
   const logout = async () => {
     try {
-      const response = await fetch(`${apiBaseURL}/auth/logout`, {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      })
-      
-      if (response.ok) {
+      if (window.location.hostname === 'localhost') {
+        // In development, use Express server
+        const response = await fetch(`${apiBaseURL}/auth/logout`, {
+          method: 'POST',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        })
+        
+        if (response.ok) {
+          setUser(null)
+          console.log('Logged out successfully')
+        }
+      } else {
+        // In production, clear the auth cookie
+        document.cookie = 'auth_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
         setUser(null)
         console.log('Logged out successfully')
       }

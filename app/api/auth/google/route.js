@@ -1,28 +1,36 @@
 import { NextResponse } from 'next/server';
 
-export async function GET() {
+export async function GET(request) {
   try {
-    // In development, redirect to Express server
-    if (process.env.NODE_ENV === 'development') {
-      return NextResponse.redirect('http://localhost:4005/auth/google');
+    const clientId = process.env.GOOGLE_CLIENT_ID;
+    
+    if (!clientId) {
+      console.error('Google OAuth client ID not configured');
+      return NextResponse.redirect('/login?error=oauth_not_configured');
     }
     
-    // In production (Vercel), construct Google OAuth URL directly
-    const clientId = process.env.GOOGLE_CLIENT_ID;
-    const redirectUri = `${process.env.CLIENT_URL || process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://your-app.vercel.app'}/api/auth/google/callback`;
+    // Get the current hostname for the redirect URI
+    const host = request.headers.get('host');
+    const protocol = host?.includes('localhost') ? 'http' : 'https';
+    const redirectUri = `${protocol}://${host}/api/auth/google/callback`;
     
-    const googleAuthURL = `https://accounts.google.com/o/oauth2/v2/auth?` +
-      `client_id=${clientId}&` +
-      `redirect_uri=${encodeURIComponent(redirectUri)}&` +
-      `response_type=code&` +
-      `scope=profile email&` +
-      `access_type=offline&` +
-      `prompt=consent`;
-
-    return NextResponse.redirect(googleAuthURL);
+    console.log('🔍 OAuth initiation - redirect URI:', redirectUri);
+    
+    // Build Google OAuth URL
+    const googleAuthUrl = new URL('https://accounts.google.com/o/oauth2/v2/auth');
+    googleAuthUrl.searchParams.set('client_id', clientId);
+    googleAuthUrl.searchParams.set('redirect_uri', redirectUri);
+    googleAuthUrl.searchParams.set('response_type', 'code');
+    googleAuthUrl.searchParams.set('scope', 'openid email profile');
+    googleAuthUrl.searchParams.set('access_type', 'offline');
+    googleAuthUrl.searchParams.set('prompt', 'consent');
+    
+    console.log('🔗 Redirecting to Google OAuth:', googleAuthUrl.toString());
+    
+    return NextResponse.redirect(googleAuthUrl.toString());
     
   } catch (error) {
-    console.error('Google auth redirect error:', error);
-    return NextResponse.json({ error: 'Authentication failed' }, { status: 500 });
+    console.error('Google OAuth initiation error:', error);
+    return NextResponse.redirect('/login?error=oauth_init_failed');
   }
 }

@@ -5,14 +5,22 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request) {
   try {
+    // Set cache control headers to prevent caching
+    const response = NextResponse.json({ 
+      authenticated: false, 
+      message: 'No authentication cookie found' 
+    });
+    
+    // Add cache control headers
+    response.headers.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+    response.headers.set('Pragma', 'no-cache');
+    response.headers.set('Expires', '0');
+    
     // Get the auth cookie
     const authCookie = request.cookies.get('auth_user');
     
     if (!authCookie || !authCookie.value) {
-      return NextResponse.json({ 
-        authenticated: false, 
-        message: 'No authentication cookie found' 
-      });
+      return response;
     }
     
     const userEmail = authCookie.value;
@@ -31,6 +39,12 @@ export async function GET(request) {
           message: 'Domain not allowed',
           userEmail,
           requiredDomain: companyDomain
+        }, {
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
+          }
         });
       }
     }
@@ -39,6 +53,12 @@ export async function GET(request) {
       authenticated: true, 
       user: { email: userEmail },
       message: 'Authentication successful' 
+    }, {
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     });
     
   } catch (error) {
@@ -47,6 +67,13 @@ export async function GET(request) {
       authenticated: false, 
       message: 'Authentication check failed',
       error: error.message 
+    }, {
+      status: 500,
+      headers: {
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache',
+        'Expires': '0'
+      }
     });
   }
 }

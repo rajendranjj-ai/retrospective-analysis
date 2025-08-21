@@ -1,49 +1,64 @@
 import { NextResponse } from 'next/server';
 
-export async function POST(request) {
+// Force dynamic rendering for this route
+export const dynamic = 'force-dynamic';
+
+export async function POST() {
   try {
-    // In development, redirect to Express server
-    if (process.env.NODE_ENV === 'development') {
-      const response = await fetch('http://localhost:4005/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Cookie': request.headers.get('cookie') || '',
-          'Content-Type': 'application/json',
-        }
-      });
-      
-      if (response.ok) {
-        const data = await response.json();
-        const nextResponse = NextResponse.json(data);
-        
-        // Clear any cookies
-        nextResponse.cookies.delete('connect.sid');
-        nextResponse.cookies.delete('session');
-        
-        return nextResponse;
-      } else {
-        return NextResponse.json({ error: 'Logout failed' }, { status: 500 });
-      }
-    }
+    console.log('🔐 Logout request received');
     
-    // In production (Vercel), implement session clearing
+    // Create response
     const response = NextResponse.json({ 
       success: true, 
-      message: 'Logged out successfully (serverless)' 
+      message: 'Logged out successfully' 
+    });
+    
+    // Clear all authentication cookies
+    response.cookies.set('auth_user', '', {
+      expires: new Date(0),
+      path: '/',
+      secure: true,
+      sameSite: 'lax',
+      httpOnly: true
+    });
+    
+    // Clear any other potential auth cookies
+    response.cookies.set('auth_token', '', {
+      expires: new Date(0),
+      path: '/',
+      secure: true,
+      sameSite: 'lax',
+      httpOnly: true
     });
     
     // Clear session cookies
-    response.cookies.delete('connect.sid');
-    response.cookies.delete('session');
+    response.cookies.set('session', '', {
+      expires: new Date(0),
+      path: '/',
+      secure: true,
+      sameSite: 'lax',
+      httpOnly: true
+    });
+    
+    // Clear any Google OAuth related cookies
+    response.cookies.set('g_state', '', {
+      expires: new Date(0),
+      path: '/',
+      secure: true,
+      sameSite: 'lax',
+      httpOnly: false
+    });
+    
+    console.log('✅ All authentication cookies cleared');
     
     return response;
     
   } catch (error) {
-    console.error('Logout error:', error);
+    console.error('❌ Logout error:', error);
     return NextResponse.json({ 
-      error: 'Logout failed',
-      message: error.message 
+      success: false, 
+      message: 'Logout failed',
+      error: error.message 
     }, { status: 500 });
   }
 }

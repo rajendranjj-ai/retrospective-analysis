@@ -116,6 +116,8 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   const logout = async () => {
     try {
+      console.log('🔐 Logout initiated');
+      
       if (window.location.hostname === 'localhost') {
         // In development, use Express server
         const response = await fetch(`${apiBaseURL}/auth/logout`, {
@@ -124,20 +126,55 @@ export function AuthProvider({ children }: AuthProviderProps) {
           headers: {
             'Content-Type': 'application/json',
           },
-        })
+        });
         
         if (response.ok) {
-          setUser(null)
-          console.log('Logged out successfully')
+          setUser(null);
+          console.log('Logged out successfully (development)');
         }
       } else {
-        // In production, clear the auth cookie
-        document.cookie = 'auth_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/;';
-        setUser(null)
-        console.log('Logged out successfully')
+        // In production, call our logout API and clear all cookies
+        try {
+          const response = await fetch('/api/auth/logout', {
+            method: 'POST',
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+          });
+          
+          if (response.ok) {
+            console.log('✅ Logout API call successful');
+          }
+        } catch (apiError) {
+          console.warn('⚠️ Logout API call failed, clearing cookies locally:', apiError);
+        }
+        
+        // Clear all cookies locally as backup
+        document.cookie = 'auth_user=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; secure; samesite=lax';
+        document.cookie = 'auth_token=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; secure; samesite=lax';
+        document.cookie = 'session=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; secure; samesite=lax';
+        document.cookie = 'g_state=; expires=Thu, 01 Jan 1970 00:00:00 UTC; path=/; secure; samesite=lax';
+        
+        // Clear localStorage and sessionStorage
+        if (typeof window !== 'undefined') {
+          localStorage.clear();
+          sessionStorage.clear();
+        }
+        
+        setUser(null);
+        console.log('✅ All local storage and cookies cleared');
       }
+      
+      // Force a hard refresh to clear any cached state
+      console.log('🔄 Forcing page refresh to clear cache');
+      window.location.href = '/';
+      
     } catch (error) {
-      console.error('Logout failed:', error)
+      console.error('❌ Logout failed:', error);
+      // Even if logout fails, clear user state and refresh
+      setUser(null);
+      window.location.href = '/';
     }
   }
 

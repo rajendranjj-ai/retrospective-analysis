@@ -84,6 +84,19 @@ export default function Dashboard() {
     return () => clearTimeout(timeout)
   }, [])
 
+  // Monitor authentication and trigger automatic chart loading when ready
+  useEffect(() => {
+    if (isAuthenticated && user && !loading && Object.keys(sections).length > 0 && loadedQuestions.size === 0 && !trendsLoading) {
+      console.log('🔄 Authentication ready and data loaded, triggering automatic chart loading...')
+      const autoLoadTimeout = setTimeout(() => {
+        console.log('⏰ Auto-loading charts after authentication stabilized')
+        loadAllTrends()
+      }, 3000) // Additional 3 second delay for full stabilization
+      
+      return () => clearTimeout(autoLoadTimeout)
+    }
+  }, [isAuthenticated, user, loading, sections, loadedQuestions.size, trendsLoading])
+
   const fetchData = async () => {
     try {
       setLoading(true)
@@ -137,8 +150,15 @@ export default function Dashboard() {
         // Use setTimeout to allow state to update first and authentication to settle
         setTimeout(() => {
           console.log('🔄 Delayed start of trend loading to ensure authentication is ready')
-          loadAllTrends()
-        }, 2000) // Increased delay to allow auth to fully settle
+          // Additional authentication check before automatic loading
+          if (isAuthenticated && user) {
+            console.log('✅ Authentication confirmed, proceeding with automatic trend loading')
+            loadAllTrends()
+          } else {
+            console.log('⚠️ Authentication not ready, skipping automatic loading')
+            console.log(`Auth status: ${isAuthenticated}, User: ${user?.email || 'none'}`)
+          }
+        }, 5000) // Increased delay to 5 seconds for auth to fully settle
       }
       
       // Fetch release data for the new chart (environment-aware)
@@ -357,12 +377,22 @@ export default function Dashboard() {
         
         try {
           const testResponse = await fetch(`${apiBaseUrl}/api/trends/${encodeURIComponent(testQuestions[0])}`, {
-            credentials: 'include'
+            credentials: 'include',
+            headers: {
+              'Content-Type': 'application/json'
+            }
           })
           
           if (!testResponse.ok) {
             const errorText = await testResponse.text()
             console.error('❌ Authentication test failed:', testResponse.status, errorText)
+            
+            // If it's an authentication error, show a helpful message
+            if (testResponse.status === 401 || testResponse.status === 403) {
+              console.log('🔑 Authentication issue detected - charts will need to be loaded manually')
+              console.log('💡 This is normal on first load - try clicking "Load Charts" or refresh the page')
+            }
+            
             setTrendsLoading(false)
             return
           }
@@ -372,8 +402,9 @@ export default function Dashboard() {
           newAllTrends[testQuestions[0]] = testData
           newLoadedQuestions.add(testQuestions[0])
           processedQuestions++
-        } catch (error) {
+    } catch (error) {
           console.error('❌ Authentication test error:', error)
+          console.log('🔑 Network/authentication issue - manual loading will be required')
           setTrendsLoading(false)
           return
         }

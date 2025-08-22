@@ -255,10 +255,10 @@ function analyzeQuestionTrends(data, questionColumn) {
   // Questions that should return raw responses instead of percentages
   const textQuestions = [
     'Share an interesting use case where Cursor helped you',
-    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ?',
+    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ? If yes, where do you use it ?',
     'Any feedback on Cursor Usage ?',
     'Which mode do you prefer using in Cursor ?',
-    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?',
+    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.',
     'What are the key points for your preference as Copilot as IDE ?',
     'What was your engagement area during this release while not associated with the release deliverables?'
   ];
@@ -314,29 +314,31 @@ function analyzeQuestionTrends(data, questionColumn) {
       if (questionKey) {
         // Column exists - process the data
         if (isTextQuestion) {
-          // For text questions, collect all unique responses
-          const uniqueResponses = new Set()
+          // For text questions, collect all responses with their actual counts
+          const answerCounts = {}
           let totalValidResponses = 0
           
           for (const row of df) {
             const value = row[questionKey]
             if (value !== undefined && value !== null && value !== '' && 
                 value.trim() !== '' && value.trim() !== 'N/A' && value.trim() !== '-') {
-              uniqueResponses.add(value.trim())
+              const trimmedValue = value.trim()
+              answerCounts[trimmedValue] = (answerCounts[trimmedValue] || 0) + 1
               totalValidResponses++
             }
           }
           
-          // Convert to object format for compatibility (each response gets 100% since they're unique)
+          // For text questions, store actual counts as the "percentage" value
+          // Frontend will use this directly as the response count
           const responseData = {}
-          Array.from(uniqueResponses).forEach(response => {
-            responseData[response] = 100 // Each unique response gets 100% weight
+          Object.entries(answerCounts).forEach(([response, count]) => {
+            responseData[response] = count // Store count as the value
           })
           
           trends[month] = responseData
           rawResponseCounts[month] = {} // Text questions don't have raw counts in the traditional sense
           responseCounts[month] = totalValidResponses
-          console.log(`✅ Processed text question ${month}: ${totalValidResponses} responses, ${uniqueResponses.size} unique responses`)
+          console.log(`✅ Processed text question ${month}: ${totalValidResponses} responses, ${Object.keys(answerCounts).length} unique responses`)
         } else {
           // Get value counts and calculate percentages (regular analysis)
           const valueCounts = {}
@@ -1325,10 +1327,10 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
   // Questions that should return raw responses instead of percentages
   const textQuestions = [
     'Share an interesting use case where Cursor helped you',
-    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ?',
+    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ? If yes, where do you use it ?',
     'Any feedback on Cursor Usage ?',
     'Which mode do you prefer using in Cursor ?',
-    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?',
+    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.',
     'What are the key points for your preference as Copilot as IDE ?',
     'What was your engagement area during this release while not associated with the release deliverables?'
   ];
@@ -1408,29 +1410,31 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
       }
       
       if (isTextQuestion) {
-        // For text questions, collect all unique responses
-        const uniqueResponses = new Set()
+        // For text questions, collect all responses with their actual counts
+        const answerCountsMap = {}
         let totalValidResponses = 0
         
         for (const response of directorResponses) {
           const value = response[questionKey]
           if (value && value !== '' && value.trim() !== '' && 
               value.trim() !== 'N/A' && value.trim() !== '-') {
-            uniqueResponses.add(value.trim())
+            const trimmedValue = value.trim()
+            answerCountsMap[trimmedValue] = (answerCountsMap[trimmedValue] || 0) + 1
             totalValidResponses++
           }
         }
         
-        // Convert to object format for compatibility (each response gets 100% since they're unique)
+        // For text questions, store actual counts as the "percentage" value
+        // Frontend will use this directly as the response count
         const responseData = {}
-        Array.from(uniqueResponses).forEach(response => {
-          responseData[response] = 100 // Each unique response gets 100% weight
+        Object.entries(answerCountsMap).forEach(([response, count]) => {
+          responseData[response] = count // Store count as the value
         })
         
         trends[month] = responseData
         rawResponseCounts[month] = {} // Text questions don't have raw counts in the traditional sense
         responseCounts[month] = totalValidResponses
-        console.log(`Processed text question ${month}: ${totalValidResponses} responses, ${uniqueResponses.size} unique responses`)
+        console.log(`Processed text question ${month}: ${totalValidResponses} responses, ${Object.keys(answerCountsMap).length} unique responses`)
       } else {
         // Get value counts and calculate percentages (regular analysis)
         const valueCounts = {}

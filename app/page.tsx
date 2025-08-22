@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from 'react'
 import { RefreshCw, BarChart3, Download, Upload } from 'lucide-react'
 import MetricCard from '@/components/MetricCard'
-import QuestionSelector from '@/components/QuestionSelector'
+
 import TrendChart from '@/components/TrendChart'
 import ResponseChart from '@/components/ResponseChart'
 import DirectorAnalysisTable from '@/components/DirectorAnalysisTable'
@@ -43,13 +43,12 @@ export default function Dashboard() {
     totalQuestions: 0,
     averageResponseRate: 0
   })
-  const [questionCategories, setQuestionCategories] = useState<{ [key: string]: string[] }>({})
   const [orderedQuestions, setOrderedQuestions] = useState<string[]>([])
   const [sections, setSections] = useState<{ [key: string]: string[] }>({})
-  const [selectedCategory, setSelectedCategory] = useState<string>('')
-  const [selectedSection, setSelectedSection] = useState<string>('All Sections')
-  const [selectedQuestion, setSelectedQuestion] = useState<string>('')
-  const [trends, setTrends] = useState<TrendsData | null>(null)
+  const [allTrends, setAllTrends] = useState<{ [question: string]: TrendsData }>({})
+  const [trendsLoading, setTrendsLoading] = useState(false)
+  const [loadedQuestions, setLoadedQuestions] = useState<Set<string>>(new Set())
+  const [tablePagination, setTablePagination] = useState<{ [question: string]: number }>({})
   const [loading, setLoading] = useState(true)
   const [releaseData, setReleaseData] = useState<Array<{month: string, responses: number, questions: number}>>([])
   const [directorAnalysis, setDirectorAnalysis] = useState<any>(null)
@@ -77,7 +76,6 @@ export default function Dashboard() {
         setLoading(false)
         // Set default values
         setSummary({ totalResponses: 0, totalQuestions: 0, averageResponseRate: 0 })
-        setQuestionCategories({})
         setOrderedQuestions([])
         setReleaseData([])
       }
@@ -119,7 +117,9 @@ export default function Dashboard() {
         ? 'http://localhost:4005' 
         : '';
       
-      const questionsResponse = await fetch(`${apiBaseUrl}/api/all-questions`)
+      const questionsResponse = await fetch(`${apiBaseUrl}/api/all-questions`, {
+        credentials: 'include'
+      })
       if (!questionsResponse.ok) {
         throw new Error(`All questions API failed: ${questionsResponse.status}`)
       }
@@ -128,13 +128,24 @@ export default function Dashboard() {
       console.log('Sections data:', questionsData.sections)
       
       // Set questions and sections data
-      setQuestionCategories({}) // Clear categories since we're using sections
       setOrderedQuestions(questionsData.questions || [])
       setSections(questionsData.sections || {})
       
+      // Start loading trends for all questions (don't await to not block main loading)
+      if (questionsData.sections && Object.keys(questionsData.sections).length > 0) {
+        console.log('📊 Starting background loading of all trend charts...')
+        // Use setTimeout to allow state to update first and authentication to settle
+        setTimeout(() => {
+          console.log('🔄 Delayed start of trend loading to ensure authentication is ready')
+          loadAllTrends()
+        }, 2000) // Increased delay to allow auth to fully settle
+      }
+      
       // Fetch release data for the new chart (environment-aware)
       console.log('Fetching releases data...')
-      const releasesResponse = await fetch(`${apiBaseUrl}/api/releases`)
+      const releasesResponse = await fetch(`${apiBaseUrl}/api/releases`, {
+        credentials: 'include'
+      })
       if (!releasesResponse.ok) {
         throw new Error(`Releases API failed: ${releasesResponse.status}`)
       }
@@ -155,7 +166,6 @@ export default function Dashboard() {
       loadingRef.current = false
       // Set default values to prevent infinite loading
       setSummary({ totalResponses: 0, totalQuestions: 0, averageResponseRate: 0 })
-      setQuestionCategories({})
       setOrderedQuestions([])
       setReleaseData([])
     }
@@ -172,7 +182,8 @@ export default function Dashboard() {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-        }
+        },
+        credentials: 'include'
       })
       
       if (!refreshResponse.ok) {
@@ -182,13 +193,31 @@ export default function Dashboard() {
       const refreshResult = await refreshResponse.json()
       console.log('✅ Server data refreshed:', refreshResult)
       
+      // Also refresh questions from Excel files
+      console.log('🔄 Refreshing questions from Excel files...')
+      const questionsRefreshResponse = await fetch('/api/refresh-questions-from-excel', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        credentials: 'include'
+      })
+      
+      if (questionsRefreshResponse.ok) {
+        const questionsResult = await questionsRefreshResponse.json()
+        console.log('✅ Questions refreshed from Excel:', questionsResult)
+      } else {
+        console.warn('⚠️ Questions refresh failed, but continuing with data refresh')
+      }
+      
       // Then reload the frontend data
       await fetchData()
       
-      alert(`Data refreshed successfully! 
+      alert(`Data and questions refreshed successfully! 
 📁 Files loaded: ${refreshResult.summary.filesLoaded}
 📊 Total responses: ${refreshResult.summary.totalResponses}
-⏱️ Load time: ${refreshResult.summary.loadTime}ms`)
+⏱️ Load time: ${refreshResult.summary.loadTime}ms
+🔄 Questions updated from Excel files`)
       
     } catch (error) {
       console.error('❌ Refresh failed:', error)
@@ -198,57 +227,214 @@ export default function Dashboard() {
     }
   }
 
-  const handleQuestionChange = async (question: string) => {
-    if (!question) return
+  // Questions to show as tables instead of trend charts
+  const isTableQuestion = (question: string) => {
+    const tableQuestions = [
+      "What was the action item and how was it resolved during the release?",
+      "What was the action item and how was it resolved during the release? ", // Handle potential trailing space
+      "Any other thought you would like to share related to the releases.",
+      "Do you have any suggestion for improving and streamlining the release further?",
+      "Any Suggestions for Jira enhancements?",
+      "What was your engagement area during this release while not associated with the release deliverables?",
+      "Share an interesting use case where Cursor helped you",
+      "Any feedback on Cursor Usage ?",
+      "Which mode do you prefer using in Cursor ?",
+      "Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.",
+      "What are the key points for your preference as Copilot as IDE ?",
+      "What types of tasks do you use Cursor, Copilot for ?",
+      "What types of tasks do you use Cursor, Copilot for ? (select all that apply)"
+    ]
+    return tableQuestions.some(tableQ => question.trim() === tableQ.trim())
+  }
+
+  // Extract unique answers from trend data for table display (August 2025 only)
+  const getUniqueAnswersFromTrends = (trendsData: TrendsData, questionText: string) => {
+    const uniqueAnswers: Array<{answer: string, months: string[], totalResponses: number}> = []
     
-    try {
-      setLoading(true)
+    // Only process August 2025 data
+    const targetMonth = 'August 2025'
+    const monthData = trendsData.trends[targetMonth]
+    
+    if (!monthData) {
+      console.warn(`No data found for ${targetMonth}`)
+      return uniqueAnswers
+    }
+
+    Object.entries(monthData).forEach(([answer, percentage]) => {
+      // Skip empty answers or very common non-responses
+      const cleanAnswer = answer.trim().toLowerCase()
+      if (!answer || cleanAnswer === '' || 
+          cleanAnswer === 'n/a' || cleanAnswer === 'na' ||
+          cleanAnswer === 'none' || cleanAnswer === 'nil' ||
+          cleanAnswer === 'no' || cleanAnswer === 'not applicable' ||
+          cleanAnswer === 'no action' || cleanAnswer === 'no suggestion' ||
+          cleanAnswer === 'no thoughts' || cleanAnswer === 'no feedback' ||
+          cleanAnswer === 'nothing' || cleanAnswer === 'not sure' ||
+          cleanAnswer === '-' || cleanAnswer === '--' ||
+          cleanAnswer.includes('not applicable') ||
+          cleanAnswer.includes('no suggestions') ||
+          cleanAnswer.includes('no comments') ||
+          cleanAnswer.includes('no thoughts') ||
+          cleanAnswer.includes('no feedback')) {
+        return
+      }
+
+      // For table questions (text questions), the server stores actual counts as the percentage value
+      // For regular questions, we need to calculate from percentage
+      let totalResponses
+      if (isTableQuestion(questionText)) {
+        // Text questions: percentage value is actually the count
+        totalResponses = Math.round(percentage)
+      } else {
+        // Regular questions: calculate from percentage and month total
+        const monthTotal = trendsData.responseCounts[targetMonth] || 100
+        totalResponses = Math.round((percentage / 100) * monthTotal)
+      }
       
-      // Environment-aware API base URL
+      uniqueAnswers.push({
+        answer: answer,
+        months: [targetMonth],
+        totalResponses: totalResponses
+      })
+    })
+
+    return uniqueAnswers.sort((a, b) => {
+      // Primary sort: by answer length (longest first)
+      const lengthDiff = b.answer.length - a.answer.length
+      if (lengthDiff !== 0) return lengthDiff
+      
+      // Secondary sort: by total responses (most mentioned first)
+      return b.totalResponses - a.totalResponses
+    })
+  }
+
+  // Helper function to get current page for a question
+  const getCurrentPage = (question: string) => tablePagination[question] || 0
+  
+  // Helper function to set page for a question
+  const setQuestionPage = (question: string, page: number) => {
+    setTablePagination(prev => ({ ...prev, [question]: page }))
+  }
+
+  const loadAllTrends = async () => {
+    if (Object.keys(sections).length === 0) {
+      console.log('No sections available yet, skipping trend loading')
+      return
+    }
+
+    // Check if user is authenticated before loading trends
+    if (!isAuthenticated) {
+      console.log('⚠️ User not authenticated, skipping trend loading')
+      return
+    }
+
+    console.log('🔄 Loading trends for all questions...')
+    setTrendsLoading(true)
+
       const apiBaseUrl = typeof window !== 'undefined' && window.location.hostname === 'localhost' 
         ? 'http://localhost:4005' 
         : '';
       
-      // Fetch trends data (environment-aware)
-      const trendsResponse = await fetch(`${apiBaseUrl}/api/trends/${encodeURIComponent(question)}`)
-      if (!trendsResponse.ok) {
-        throw new Error(`Trends API failed: ${trendsResponse.status}`)
+    const newAllTrends: { [question: string]: TrendsData } = {}
+    const newLoadedQuestions = new Set<string>()
+    let totalQuestions = 0
+    let processedQuestions = 0
+
+    // Count total questions
+    Object.values(sections).forEach(sectionQuestions => {
+      totalQuestions += sectionQuestions.length
+    })
+
+    console.log(`📊 Loading trends for ${totalQuestions} questions across ${Object.keys(sections).length} sections`)
+    console.log(`🔐 Authentication status: ${isAuthenticated ? 'Authenticated' : 'Not authenticated'}`)
+    console.log(`👤 User: ${user?.email || 'No user data'}`)
+
+    try {
+      // Test with a single API call first to verify authentication
+      const testQuestions = Object.values(sections).flat().slice(0, 1)
+      if (testQuestions.length > 0) {
+        console.log(`🧪 Testing authentication with question: "${testQuestions[0].substring(0, 60)}..."`)
+        
+        try {
+          const testResponse = await fetch(`${apiBaseUrl}/api/trends/${encodeURIComponent(testQuestions[0])}`, {
+            credentials: 'include'
+          })
+          
+          if (!testResponse.ok) {
+            const errorText = await testResponse.text()
+            console.error('❌ Authentication test failed:', testResponse.status, errorText)
+            setTrendsLoading(false)
+            return
+          }
+          
+          const testData = await testResponse.json()
+          console.log('✅ Authentication test passed, proceeding with batch loading')
+          newAllTrends[testQuestions[0]] = testData
+          newLoadedQuestions.add(testQuestions[0])
+          processedQuestions++
+        } catch (error) {
+          console.error('❌ Authentication test error:', error)
+          setTrendsLoading(false)
+          return
+        }
       }
-      const trendsData = await trendsResponse.json()
-      console.log('✅ TRENDS DATA from server:', trendsData)
-      setTrends(trendsData)
+
+      // Process remaining questions in batches
+      const batchSize = 3 // Reduced batch size to be more conservative
+      const remainingQuestions = Object.values(sections).flat().slice(1) // Skip the test question
       
-      // Fetch director analysis data (environment-aware)
-      const directorResponse = await fetch(`${apiBaseUrl}/api/director-analysis/${encodeURIComponent(question)}`)
-      if (!directorResponse.ok) {
-        throw new Error(`Director API failed: ${directorResponse.status}`)
-      }
-      const directorData = await directorResponse.json()
-      console.log('✅ DIRECTOR DATA from server:', directorData)
-      setDirectorAnalysis(directorData)
-      
-      setSelectedQuestion(question)
-      setLoading(false)
+      for (let i = 0; i < remainingQuestions.length; i += batchSize) {
+        const batch = remainingQuestions.slice(i, i + batchSize)
+        
+        // Process batch sequentially instead of parallel to avoid overwhelming auth
+        for (const question of batch) {
+          try {
+            const response = await fetch(`${apiBaseUrl}/api/trends/${encodeURIComponent(question)}`, {
+              credentials: 'include'
+            })
+            
+            if (response.ok) {
+              const trendsData = await response.json()
+              newAllTrends[question] = trendsData
+              newLoadedQuestions.add(question)
+              processedQuestions++
+              
+              if (isTableQuestion(question)) {
+                console.log(`✅ Loaded table data for: "${question.substring(0, 60)}..." (${processedQuestions}/${totalQuestions})`)
+              } else {
+                console.log(`✅ Loaded trends for: "${question.substring(0, 60)}..." (${processedQuestions}/${totalQuestions})`)
+              }
+            } else {
+              const errorText = await response.text()
+              console.log(`⚠️ Failed to load data for: "${question.substring(0, 60)}..." - ${response.status}: ${errorText}`)
+              processedQuestions++
+            }
     } catch (error) {
-      console.error('Error fetching data:', error)
-      setTrends(null)
-      setDirectorAnalysis(null)
-      setLoading(false)
+            console.error(`❌ Error loading data for question: "${question.substring(0, 60)}..."`, error)
+            processedQuestions++
+          }
+          
+          // Small delay between each request to be respectful to the server
+          await new Promise(resolve => setTimeout(resolve, 200))
+        }
+        
+        // Update state periodically to show progress
+        setAllTrends({...newAllTrends})
+        setLoadedQuestions(new Set(newLoadedQuestions))
+      }
+
+      setAllTrends(newAllTrends)
+      setLoadedQuestions(newLoadedQuestions)
+      console.log(`✅ Successfully loaded trends for ${newLoadedQuestions.size}/${totalQuestions} questions`)
+      
+    } catch (error) {
+      console.error('❌ Error loading all trends:', error)
+    } finally {
+      setTrendsLoading(false)
     }
   }
 
-  const handleCategoryChange = (category: string) => {
-    setSelectedCategory(category)
-    setSelectedQuestion('')
-    setTrends(null)
-  }
 
-  const handleSectionChange = (section: string) => {
-    setSelectedSection(section)
-    setSelectedQuestion('')
-    setTrends(null)
-    console.log('Section changed to:', section)
-  }
 
   const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -274,7 +460,8 @@ export default function Dashboard() {
 
       const response = await fetch(`${apiBaseUrl}/api/upload-release`, {
         method: 'POST',
-        body: formData
+        body: formData,
+        credentials: 'include'
       })
 
       if (!response.ok) {
@@ -425,23 +612,10 @@ export default function Dashboard() {
           <div>
             <h1 className="text-3xl font-bold text-gray-900">
               Release Retrospective Analysis
-              {selectedQuestion && <span className="text-blue-600 text-2xl ml-3">• Question Focus Mode</span>}
             </h1>
             <p className="text-gray-600 mt-2">
-              {selectedQuestion 
-                ? 'Focused analysis on selected question' 
-                : 'Analyze trends and insights across release retrospectives'
-              }
+              Comprehensive analysis of trends and insights across all release retrospectives
             </p>
-            {selectedQuestion && (
-              <div className="mt-3 text-sm text-gray-500">
-                <span className="flex items-center gap-2">
-                  📊 Dashboard → 
-                  <span className="text-blue-600 font-medium">{selectedCategory || 'All Questions'}</span> → 
-                  <span className="text-blue-800 font-medium">Question Analysis</span>
-                </span>
-              </div>
-            )}
           </div>
           <div className="flex items-center gap-3">
             {/* Hidden file input */}
@@ -562,8 +736,8 @@ export default function Dashboard() {
 
 
 
-        {/* Release Responses Chart - Hide when question is selected */}
-        {!selectedQuestion && (
+        {/* Release Responses Chart */}
+        {(
           <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Total Survey Responses by Release</h2>
             <p className="text-sm text-gray-600 mb-4">Shows total number of people who completed the survey (may not have answered every question)</p>
@@ -663,125 +837,341 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* Question Selection */}
-        <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
+        {/* Comprehensive Question Analysis */}
+        <div className="space-y-8">
+          <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-xl font-semibold text-gray-900">
-              {selectedQuestion ? 'Question Analysis' : 'Select Question for Analysis'}
-            </h2>
-            {selectedQuestion && (
+              <div>
+                <h2 className="text-2xl font-semibold text-gray-900">📊 Comprehensive Question Analysis</h2>
+                <p className="text-gray-600 mt-2">All questions organized by sections with trend analysis</p>
+              </div>
+              <div className="flex items-center gap-4">
+                {trendsLoading && (
+                  <div className="flex items-center gap-2 text-blue-600">
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                    <span className="text-sm">Loading trend charts...</span>
+                  </div>
+                )}
+                <div className="text-sm text-gray-500">
+                  {loadedQuestions.size > 0 && (
+                    <span>
+                      {loadedQuestions.size} of {Object.values(sections).flat().length} charts loaded
+                    </span>
+                  )}
+                </div>
+                {!trendsLoading && loadedQuestions.size === 0 && Object.keys(sections).length > 0 && (
               <button
                 onClick={() => {
-                  setSelectedQuestion('')
-                  setSelectedCategory('')
-                  setTrends(null)
-                  setDirectorAnalysis(null)
-                }}
-                className="flex items-center gap-2 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors"
-              >
-                ← Back to Overview
+                      console.log('🔄 Manual retry of trend loading requested')
+                      loadAllTrends()
+                    }}
+                    className="flex items-center gap-2 px-3 py-1 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 transition-colors"
+                  >
+                    <RefreshCw className="w-3 h-3" />
+                    Load Charts
               </button>
             )}
           </div>
-          <QuestionSelector
-            questionCategories={questionCategories}
-            orderedQuestions={orderedQuestions}
-            sections={sections}
-            selectedCategory={selectedCategory}
-            selectedSection={selectedSection}
-            selectedQuestion={selectedQuestion}
-            onCategoryChange={handleCategoryChange}
-            onSectionChange={handleSectionChange}
-            onQuestionChange={handleQuestionChange}
-          />
         </div>
 
-        {/* Selected Question Display */}
-        {selectedQuestion && (
-          <div className="bg-blue-50 border-l-4 border-blue-500 rounded-lg shadow-sm p-6 mb-8">
-            <h2 className="text-xl font-semibold text-blue-900 mb-4">📊 Analyzing Question</h2>
-            <p className="text-blue-800 text-lg leading-relaxed font-medium">{selectedQuestion}</p>
+            {Object.keys(sections).length === 0 ? (
+              <div className="text-center py-8">
+                <p className="text-gray-500">Loading question sections...</p>
+              </div>
+            ) : !trendsLoading && loadedQuestions.size === 0 && Object.keys(sections).length > 0 ? (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+                <div className="flex items-center gap-2 text-yellow-800">
+                  <span>⚠️</span>
+                  <p className="font-medium">Trend Charts Not Loaded</p>
+                </div>
+                <p className="text-sm text-yellow-700 mt-1">
+                  The trend analysis charts haven't loaded yet. This might be due to authentication or connectivity issues. 
+                  Click "Load Charts" to retry, or check that you're logged in properly.
+                </p>
+                <div className="text-sm text-gray-600 mt-2">
+                  <span>📋 {Object.keys(sections).length} sections • </span>
+                  <span>📊 {Object.values(sections).flat().length} questions total (ready to load)</span>
+                </div>
+              </div>
+            ) : (
+              <div className="text-sm text-gray-600">
+                <span>📋 {Object.keys(sections).length} sections • </span>
+                <span>📊 {Object.values(sections).flat().length} questions total</span>
           </div>
         )}
-
-        {/* Trend Analysis Chart */}
-        {trends && (
-          <div className="bg-white rounded-lg shadow-sm p-6 mb-8">
-            <h2 className="text-xl font-semibold text-gray-900 mb-4">Trend Analysis</h2>
-            <p className="text-sm text-gray-600 mb-4">Hover over data points to see question-specific response counts (excludes people who skipped this question)</p>
-            <TrendChart
-              trends={trends.trends}
-              questionTitle={selectedQuestion}
-              responseCounts={trends.responseCounts}
-              rawCounts={trends.rawCounts}
-            />
           </div>
-        )}
 
-        {/* Director Analysis Table */}
-        {directorAnalysis && (
-          <div className="mb-8">
-            <DirectorAnalysisTable
-              question={directorAnalysis.question}
-              releases={directorAnalysis.releases}
-            />
-            
-            {/* Export Button */}
-            <div className="mt-6 text-center">
-              <button
-                onClick={async () => {
-                  if (trends && directorAnalysis) {
-                    try {
-                      const response = await fetch('/api/export-ppt', {
-                        method: 'POST',
-                        headers: {
-                          'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({
-                          question: directorAnalysis.question,
-                          trends,
-                          directorAnalysis
-                        })
-                      })
-                      
-                      if (!response.ok) {
-                        throw new Error('Export failed')
-                      }
-                      
-                      // Create blob and download
-                      const blob = await response.blob()
-                      const url = window.URL.createObjectURL(blob)
-                      const a = document.createElement('a')
-                      a.href = url
-                      a.download = `Retrospective_Analysis_${directorAnalysis.question.substring(0, 30).replace(/[^a-zA-Z0-9]/g, '_')}.pptx`
-                      document.body.appendChild(a)
-                      a.click()
-                      window.URL.revokeObjectURL(url)
-                      document.body.removeChild(a)
-                    } catch (error) {
-                      console.error('Export failed:', error)
-                      alert('Export failed. Please try again.')
-                    }
-                  }
-                }}
-                className="flex items-center gap-2 px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors mx-auto"
-                disabled={!trends || !directorAnalysis}
-              >
-                <Download className="w-5 h-5" />
-                Export as PPT
-              </button>
+          {/* Render all sections and their questions */}
+          {Object.entries(sections).map(([sectionName, sectionQuestions]) => (
+            <div key={sectionName} className="bg-white rounded-lg shadow-sm">
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
+                <h3 className="text-xl font-semibold text-gray-900">
+                  📋 {sectionName}
+                </h3>
+                <p className="text-sm text-gray-600 mt-1">
+                  {sectionQuestions.length} questions in this section
+                </p>
+          </div>
+              
+              <div className="p-6 space-y-8">
+                {sectionQuestions.map((question, index) => {
+                  const questionTrends = allTrends[question]
+                  const isLoaded = loadedQuestions.has(question)
+                  
+                  return (
+                    <div key={question} className="border-l-4 border-blue-200 pl-6 py-4">
+                      {/* Question Header */}
+                      <div className="mb-4">
+                        <div className="flex items-start justify-between">
+                          <div className="flex-1">
+                            <h4 className="text-lg font-medium text-gray-900 leading-relaxed">
+                              <span className="text-blue-600 font-semibold mr-2">
+                                Q{index + 1}.
+                              </span>
+                              {question}
+                            </h4>
+                          </div>
+                          <div className="ml-4 flex-shrink-0">
+                            {trendsLoading && !isLoaded && (
+                              <div className="flex items-center gap-2 text-gray-500">
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
+                                <span className="text-xs">Loading...</span>
+                              </div>
+                            )}
+                            {isLoaded && (
+                              <span className="text-xs text-green-600 font-medium">✅ Loaded</span>
+                            )}
+                            {!trendsLoading && !isLoaded && (
+                              <span className="text-xs text-gray-400">⏳ Queued</span>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Trend Chart or Table */}
+                      {questionTrends ? (
+                        isTableQuestion(question) ? (
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <div className="mb-3">
+                              <h5 className="text-md font-medium text-gray-800">
+                                {(() => {
+                                  // Dynamic headers based on question type
+                                  if (question.includes("action item")) {
+                                    return "Unique Action Items and Resolutions"
+                                  } else if (question.includes("Jira")) {
+                                    return "Jira Enhancement Suggestions"
+                                  } else if (question.includes("Cursor") || question.includes("ChatGPT") || question.includes("Copilot")) {
+                                    return "AI Tool Feedback and Usage"
+                                  } else if (question.includes("engagement area")) {
+                                    return "Engagement Areas Outside Release Deliverables"
+                                  } else if (question.includes("suggestion") || question.includes("improving")) {
+                                    return "Improvement Suggestions"
+                                  } else if (question.includes("thought")) {
+                                    return "Additional Thoughts and Feedback"
+                                  } else {
+                                    return "Unique Responses"
+                                  }
+                                })()}
+                              </h5>
+                              <p className="text-xs text-gray-600">
+                                Showing unique responses from August 2025 release
+                              </p>
+                            </div>
+                            {(() => {
+                              const uniqueAnswers = getUniqueAnswersFromTrends(questionTrends, question)
+                              const currentPage = getCurrentPage(question)
+                              const itemsPerPage = 10
+                              const totalPages = Math.ceil(uniqueAnswers.length / itemsPerPage)
+                              const startIndex = currentPage * itemsPerPage
+                              const endIndex = startIndex + itemsPerPage
+                              const currentPageAnswers = uniqueAnswers.slice(startIndex, endIndex)
+                              
+                              if (uniqueAnswers.length === 0) {
+                                return (
+                                  <div className="text-center py-8 text-gray-500">
+                                    <p>No responses found for this question</p>
+                                  </div>
+                                )
+                              }
+
+                              return (
+                                <div>
+                                  {/* Pagination Info */}
+                                  <div className="flex justify-between items-center mb-3">
+                                    <div className="text-xs text-gray-600">
+                                      Showing {startIndex + 1}-{Math.min(endIndex, uniqueAnswers.length)} of {uniqueAnswers.length} responses from August 2025
+                                      <span className="ml-2 text-blue-600">(Sorted by answer length)</span>
+                                    </div>
+                                    <div className="text-xs text-gray-500">
+                                      Page {currentPage + 1} of {totalPages}
+                                    </div>
+                                  </div>
+                                  
+                                  <div className="overflow-x-auto">
+                                    <table className="w-full text-sm">
+                                    <thead className="bg-gray-100">
+                                      <tr>
+                                        <th className="text-left p-3 font-medium text-gray-700">
+                                          {(() => {
+                                            // Dynamic column headers based on question type
+                                            if (question.includes("action item")) {
+                                              return "Action Item & Resolution"
+                                            } else if (question.includes("Jira")) {
+                                              return "Jira Enhancement Suggestion"
+                                            } else if (question.includes("Cursor") || question.includes("ChatGPT") || question.includes("Copilot")) {
+                                              return "AI Tool Feedback/Usage"
+                                            } else if (question.includes("engagement area")) {
+                                              return "Engagement Area"
+                                            } else if (question.includes("suggestion") || question.includes("improving")) {
+                                              return "Improvement Suggestion"
+                                            } else if (question.includes("thought")) {
+                                              return "Thought/Feedback"
+                                            } else {
+                                              return "Response"
+                                            }
+                                          })()}
+                                        </th>
+                                        <th className="text-left p-3 font-medium text-gray-700">Release</th>
+                                        <th className="text-left p-3 font-medium text-gray-700">Responses</th>
+                                      </tr>
+                                    </thead>
+                                    <tbody>
+                                      {currentPageAnswers.map((item, idx) => (
+                                        <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                                          <td className="p-3 border-t border-gray-200">
+                                            <div className="max-w-md">
+                                              <p className="text-gray-900 leading-relaxed">{item.answer}</p>
+                                            </div>
+                                          </td>
+                                          <td className="p-3 border-t border-gray-200">
+                                            <div className="flex flex-wrap gap-1">
+                                              {item.months.map((month) => (
+                                                <span 
+                                                  key={month}
+                                                  className="inline-block px-2 py-1 text-xs bg-blue-100 text-blue-800 rounded"
+                                                >
+                                                  {month}
+                                                </span>
+                                              ))}
+                                            </div>
+                                          </td>
+                                          <td className="p-3 border-t border-gray-200 text-center">
+                                            <span className="inline-block px-2 py-1 text-xs bg-green-100 text-green-800 rounded font-medium">
+                                              {item.totalResponses}
+                                            </span>
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                    </table>
             </div>
 
-
+                                  {/* Pagination Controls */}
+                                  {totalPages > 1 && (
+                                    <div className="flex justify-center items-center gap-2 mt-4">
+                                      <button
+                                        onClick={() => setQuestionPage(question, Math.max(0, currentPage - 1))}
+                                        disabled={currentPage === 0}
+                                        className={`px-3 py-1 text-xs rounded ${
+                                          currentPage === 0 
+                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed' 
+                                            : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                        }`}
+                                      >
+                                        Previous
+                                      </button>
+                                      
+                                      {/* Page numbers */}
+                                      {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                                        let pageNum;
+                                        if (totalPages <= 5) {
+                                          pageNum = i;
+                                        } else if (currentPage < 3) {
+                                          pageNum = i;
+                                        } else if (currentPage >= totalPages - 2) {
+                                          pageNum = totalPages - 5 + i;
+                                        } else {
+                                          pageNum = currentPage - 2 + i;
+                                        }
+                                        
+                                        return (
+                                          <button
+                                            key={pageNum}
+                                            onClick={() => setQuestionPage(question, pageNum)}
+                                            className={`px-2 py-1 text-xs rounded ${
+                                              pageNum === currentPage
+                                                ? 'bg-blue-600 text-white'
+                                                : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                            }`}
+                                          >
+                                            {pageNum + 1}
+                                          </button>
+                                        );
+                                      })}
+                                      
+                                      <button
+                                        onClick={() => setQuestionPage(question, Math.min(totalPages - 1, currentPage + 1))}
+                                        disabled={currentPage === totalPages - 1}
+                                        className={`px-3 py-1 text-xs rounded ${
+                                          currentPage === totalPages - 1
+                                            ? 'bg-gray-200 text-gray-400 cursor-not-allowed'
+                                            : 'bg-blue-100 text-blue-600 hover:bg-blue-200'
+                                        }`}
+                                      >
+                                        Next
+                                      </button>
           </div>
         )}
+                                </div>
+                              )
+                            })()}
+                          </div>
+                        ) : (
+                          <div className="bg-gray-50 rounded-lg p-4">
+                            <div className="mb-3">
+                              <h5 className="text-md font-medium text-gray-800">Trend Analysis</h5>
+                              <p className="text-xs text-gray-600">
+                                Hover over data points to see question-specific response counts
+                              </p>
+                            </div>
+                            <TrendChart
+                              trends={questionTrends.trends}
+                              questionTitle={question}
+                              responseCounts={questionTrends.responseCounts}
+                              rawCounts={questionTrends.rawCounts}
+                            />
+                          </div>
+                        )
+                      ) : !trendsLoading && !isLoaded ? (
+                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                          <p className="text-sm text-red-600">
+                            ⚠️ Unable to load trend data for this question
+                          </p>
+                        </div>
+                      ) : (
+                        <div className="bg-gray-50 rounded-lg p-4">
+                          <div className="animate-pulse">
+                            <div className="h-4 bg-gray-200 rounded w-1/4 mb-2"></div>
+                            <div className="h-48 bg-gray-200 rounded"></div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+          ))}
+        </div>
+
+
         </>
         )}
 
         {/* Director Analysis Tab */}
         {activeTab === 'director' && (
           <DirectorTrendAnalysis
-            questionCategories={questionCategories}
+            questionCategories={{}}
             orderedQuestions={orderedQuestions}
             sections={sections}
           />

@@ -67,10 +67,16 @@ export default function TrendChart({ trends, questionTitle, responseCounts, rawC
     )
   }
 
-  // Get all unique answer options first
+  // Get all unique answer options first and sort them alphabetically for consistency
   const allAnswers = new Set<string>()
   Object.values(trends).forEach(monthData => {
     Object.keys(monthData).forEach(answer => allAnswers.add(answer))
+  })
+  
+  // Convert to sorted array to ensure consistent color assignment and legend order
+  const sortedAnswers = Array.from(allAnswers).sort((a, b) => {
+    // Sort alphabetically, case insensitive
+    return a.toLowerCase().localeCompare(b.toLowerCase())
   })
 
   // Convert trends data to chart format with both percentage and count
@@ -90,14 +96,14 @@ export default function TrendChart({ trends, questionTitle, responseCounts, rawC
   
   const allMonths = Object.keys(trends).sort((a, b) => extractMonthOrder(a) - extractMonthOrder(b))
   
-  const completeChartData = allMonths.map(month => {
+      const completeChartData = allMonths.map(month => {
     const monthData = trends[month]
     if (!monthData) {
       // Month doesn't exist in trends, create empty structure
       return { 
         month, 
-        ...Object.fromEntries(Array.from(allAnswers).map(answer => [answer, 0])),
-        ...Object.fromEntries(Array.from(allAnswers).map(answer => [`${answer}_count`, 0]))
+        ...Object.fromEntries(sortedAnswers.map(answer => [answer, 0])),
+        ...Object.fromEntries(sortedAnswers.map(answer => [`${answer}_count`, 0]))
       }
     }
     
@@ -115,7 +121,7 @@ export default function TrendChart({ trends, questionTitle, responseCounts, rawC
     })
     
     // Ensure all answers are present (set to 0 if missing)
-    Array.from(allAnswers).forEach(answer => {
+    sortedAnswers.forEach(answer => {
       if (!(answer in monthDataWithCounts)) {
         monthDataWithCounts[answer] = 0
         monthDataWithCounts[`${answer}_count`] = 0
@@ -131,7 +137,7 @@ export default function TrendChart({ trends, questionTitle, responseCounts, rawC
   console.log('Response counts:', responseCounts)
   console.log('Response count month names:', Object.keys(responseCounts || {}))
   console.log('Complete chart data:', completeChartData)
-  console.log('All answers:', Array.from(allAnswers))
+  console.log('All answers (sorted):', sortedAnswers)
   
   // Specific check for November 2024
   if (trends['November']) {
@@ -219,7 +225,7 @@ export default function TrendChart({ trends, questionTitle, responseCounts, rawC
               return null
             }}
           />
-          {Array.from(allAnswers).map((answer, index) => (
+          {sortedAnswers.map((answer, index) => (
             <Line
               key={answer}
               type="monotone"
@@ -244,7 +250,7 @@ export default function TrendChart({ trends, questionTitle, responseCounts, rawC
       
       {/* Custom Legend */}
       <div className="mt-4 flex flex-wrap justify-center gap-4">
-        {Array.from(allAnswers).map((answer, index) => (
+        {sortedAnswers.map((answer, index) => (
           <div key={answer} className="flex items-center gap-2">
             <div 
               className="w-4 h-3 rounded-sm" 

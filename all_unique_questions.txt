@@ -1,5 +1,4 @@
 Section Name: Cursor & AI Tools
-Which IDE would you prefer to continue to work with (Cursor vs Copilot) ? Why ?
 What types of tasks do you use Cursor, Copilot for ?
 (select all that apply)
 How much Productivity boost have you experienced with Cursor ?

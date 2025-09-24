@@ -124,12 +124,8 @@ function analyzeQuestionTrends(data, questionColumn) {
   // Questions that should return raw responses instead of percentages
   const textQuestions = [
     'Share an interesting use case where Cursor helped you',
-    'Do you see the value to have access to ChatGPT, beyond your favourite AI enabled IDE ?',
-    'Any feedback on Cursor Usage ?',
     'Any feedback/suggestion on Cursor Usage ?',
-    'Which mode do you prefer using in Cursor ?',
     'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ?',
-    'What are the key points for your preference as Copilot as IDE ?',
     'What was your engagement area during this release while not associated with the release deliverables?'
   ];
   

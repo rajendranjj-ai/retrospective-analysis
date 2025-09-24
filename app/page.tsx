@@ -257,11 +257,8 @@ export default function Dashboard() {
       "Any Suggestions for Jira enhancements?",
       "What was your engagement area during this release while not associated with the release deliverables?",
       "Share an interesting use case where Cursor helped you",
-      "Any feedback on Cursor Usage ?",
       "Any feedback/suggestion on Cursor Usage ?",
-      "Which mode do you prefer using in Cursor ?",
       "Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.",
-      "What are the key points for your preference as Copilot as IDE ?",
       "What types of tasks do you use Cursor, Copilot for ?",
       "What types of tasks do you use Cursor, Copilot for ? (select all that apply)"
     ]

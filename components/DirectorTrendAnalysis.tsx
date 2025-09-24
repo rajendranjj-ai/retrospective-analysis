@@ -43,12 +43,14 @@ export default function DirectorTrendAnalysis({
   const isTableQuestion = (question: string) => {
     const tableQuestions = [
       "What was the action item and how was it resolved during the release?",
+      "What was the action item and how was it resolved during the release? ", // Handle potential trailing space
       "Any other thought you would like to share related to the releases.",
       "Do you have any suggestion for improving and streamlining the release further?",
       "Any Suggestions for Jira enhancements?",
       "What was your engagement area during this release while not associated with the release deliverables?",
       "Share an interesting use case where Cursor helped you",
-      "Any feedback on Cursor Usage ?",
+      "Any feedback/suggestion on Cursor Usage ?",
+      "Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.",
       "What types of tasks do you use Cursor, Copilot for ?",
       "What types of tasks do you use Cursor, Copilot for ? (select all that apply)"
     ]
@@ -67,7 +69,24 @@ export default function DirectorTrendAnalysis({
 
   const getUniqueAnswersFromTrends = (trendsData: DirectorTrendsData, questionText: string) => {
     const uniqueAnswers: Array<{answer: string, months: string[], totalResponses: number}> = []
-    const targetMonth = 'August 2025'
+    
+    // For all table questions (text-based questions), use the latest available month
+    // Only trend graph questions show data across all months
+    const availableMonths = Object.keys(trendsData.trends).sort((a, b) => {
+      const extractMonthOrder = (monthName: string) => {
+        const [monthStr, yearStr] = monthName.split(' ')
+        const year = parseInt(yearStr)
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December']
+        const month = monthNames.indexOf(monthStr) + 1
+        return year * 100 + month
+      }
+      return extractMonthOrder(b) - extractMonthOrder(a) // Sort descending to get latest first
+    })
+    
+    const targetMonth = availableMonths[0] // Get the latest month for all table questions
+    console.log(`🔄 Director Analysis: Using latest month '${targetMonth}' for table question: ${questionText.substring(0, 50)}...`)
+    
     const monthData = trendsData.trends[targetMonth]
 
     if (!monthData) {
@@ -171,7 +190,7 @@ export default function DirectorTrendAnalysis({
               console.log(`⚠️ Failed to load director data for: "${question.substring(0, 60)}..." - ${response.status}: ${errorText}`)
               processedQuestions++
             }
-          } catch (error) {
+      } catch (error) {
             console.error(`❌ Error loading director data for question: "${question.substring(0, 60)}..."`, error)
             processedQuestions++
           }
@@ -341,8 +360,8 @@ export default function DirectorTrendAnalysis({
                           <div className="flex items-center gap-2 text-gray-500">
                             <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-gray-400"></div>
                             <span className="text-xs">Loading...</span>
-                          </div>
-                        )}
+        </div>
+      )}
                         {isLoaded && (
                           <span className="text-xs text-green-600 font-medium">✅ Loaded</span>
                         )}
@@ -379,7 +398,7 @@ export default function DirectorTrendAnalysis({
                             })()}
                           </h5>
                           <p className="text-xs text-gray-600">
-                            Showing unique responses from August 2025 release for {selectedDirector}'s team
+                            Showing unique responses from latest release for {selectedDirector}'s team
                           </p>
                         </div>
                         {(() => {
@@ -400,11 +419,11 @@ export default function DirectorTrendAnalysis({
                           }
 
                           return (
-                            <div>
+            <div>
                               {/* Pagination Info */}
                               <div className="flex justify-between items-center mb-3">
                                 <div className="text-xs text-gray-600">
-                                  Showing {startIndex + 1}-{Math.min(endIndex, uniqueAnswers.length)} of {uniqueAnswers.length} responses from August 2025
+                                  Showing {startIndex + 1}-{Math.min(endIndex, uniqueAnswers.length)} of {uniqueAnswers.length} responses from latest release
                                   <span className="ml-2 text-blue-600">(Sorted by answer length)</span>
                                 </div>
                                 <div className="text-xs text-gray-500">
@@ -553,8 +572,8 @@ export default function DirectorTrendAnalysis({
                             'Waiting to load...' : 
                             'No trend data available'
                         }
-                      </p>
-                    </div>
+              </p>
+            </div>
                   )}
                 </div>
               )

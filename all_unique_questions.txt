@@ -1,4 +1,5 @@
 Section Name: Cursor & AI Tools
+Would you prefer Cursor as your AI code companion ?
 What types of tasks do you use Cursor, Copilot for ?
 (select all that apply)
 How much Productivity boost have you experienced with Cursor ?

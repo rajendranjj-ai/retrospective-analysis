@@ -74,26 +74,178 @@ export default function DirectorTrendAnalysis({
     const allResponses = answers.flatMap(item => Array(item.totalResponses).fill(item.answer))
     const totalResponses = allResponses.length
     
-    // Extract key themes and patterns
-    const commonWords = extractCommonThemes(allResponses)
+    // Generate content-based summary
+    const contentSummary = generateContentSummary(allResponses, questionText)
     const sentiment = analyzeSentiment(allResponses)
-    const categories = categorizeResponses(allResponses, questionText)
+    
+    let summary = `📊 **Summary of ${totalResponses} responses:**\n\n`
+    summary += contentSummary
+    summary += `\n\n🎯 **Overall Sentiment:** ${sentiment.overall} (${Math.round(sentiment.positiveRatio * 100)}% positive responses)`
+    
+    return summary
+  }
+
+  // Generate content-based summary of responses
+  const generateContentSummary = (responses: string[], questionText: string) => {
+    if (responses.length === 0) return "No responses to analyze."
+    
+    // Sort responses by frequency to prioritize most common themes
+    const responseFreq = responses.reduce((acc, resp) => {
+      acc[resp] = (acc[resp] || 0) + 1
+      return acc
+    }, {} as {[key: string]: number})
+    
+    const sortedResponses = Object.entries(responseFreq)
+      .sort(([,a], [,b]) => b - a)
+      .map(([resp]) => resp)
     
     // Generate summary based on question type
-    let summary = `📊 **Analysis of ${totalResponses} responses:**\n\n`
-    
     if (questionText.toLowerCase().includes('cursor') || questionText.toLowerCase().includes('ai') || questionText.toLowerCase().includes('copilot')) {
-      summary += `🤖 **AI Tool Insights:** ${generateAIToolSummary(categories, sentiment)}\n\n`
+      return generateAIToolContentSummary(sortedResponses, responseFreq)
     } else if (questionText.toLowerCase().includes('jira')) {
-      summary += `🔧 **Jira Enhancement Themes:** ${generateJiraSummary(categories, commonWords)}\n\n`
+      return generateJiraContentSummary(sortedResponses, responseFreq)
     } else if (questionText.toLowerCase().includes('action item')) {
-      summary += `✅ **Action Item Patterns:** ${generateActionItemSummary(categories)}\n\n`
+      return generateActionItemContentSummary(sortedResponses, responseFreq)
+    } else if (questionText.toLowerCase().includes('suggestion') || questionText.toLowerCase().includes('improve')) {
+      return generateImprovementContentSummary(sortedResponses, responseFreq)
+    } else if (questionText.toLowerCase().includes('engagement')) {
+      return generateEngagementContentSummary(sortedResponses, responseFreq)
     } else {
-      summary += `💡 **Key Insights:** ${generateGeneralSummary(categories, sentiment)}\n\n`
+      return generateGeneralContentSummary(sortedResponses, responseFreq)
+    }
+  }
+
+  const generateAIToolContentSummary = (responses: string[], freq: {[key: string]: number}) => {
+    const topResponses = responses.slice(0, 8)
+    let summary = "**Key AI Tool Usage Patterns & Feedback:**\n\n"
+    
+    // Analyze common use cases
+    const codeGenResponses = topResponses.filter(r => 
+      r.toLowerCase().includes('generat') || r.toLowerCase().includes('creat') || r.toLowerCase().includes('writ')
+    )
+    const debugResponses = topResponses.filter(r => 
+      r.toLowerCase().includes('debug') || r.toLowerCase().includes('fix') || r.toLowerCase().includes('error')
+    )
+    const productivityResponses = topResponses.filter(r => 
+      r.toLowerCase().includes('fast') || r.toLowerCase().includes('quick') || r.toLowerCase().includes('time')
+    )
+    
+    if (codeGenResponses.length > 0) {
+      summary += `• **Code Generation:** Many users leverage AI tools for writing boilerplate code, creating functions, and generating initial code structures. Common use cases include "${codeGenResponses[0].substring(0, 80)}..."\n\n`
     }
     
-    summary += `📈 **Response Distribution:** ${answers.length} unique responses, most common themes: ${commonWords.slice(0, 3).join(', ')}\n\n`
-    summary += `🎯 **Overall Sentiment:** ${sentiment.overall} (${Math.round(sentiment.positiveRatio * 100)}% positive)`
+    if (debugResponses.length > 0) {
+      summary += `• **Debugging & Problem Solving:** Users frequently use AI assistants to identify and fix code issues. Typical scenarios: "${debugResponses[0].substring(0, 80)}..."\n\n`
+    }
+    
+    if (productivityResponses.length > 0) {
+      summary += `• **Productivity Enhancement:** AI tools significantly improve development speed and efficiency. Users report: "${productivityResponses[0].substring(0, 80)}..."\n\n`
+    }
+    
+    // Add most common specific feedback
+    const topResponse = responses[0]
+    if (topResponse && freq[topResponse] > 1) {
+      summary += `• **Most Common Response:** "${topResponse}" (mentioned ${freq[topResponse]} times)\n\n`
+    }
+    
+    // Add variety insight
+    if (responses.length > 5) {
+      summary += `• **Usage Diversity:** Responses show ${responses.length} different ways teams are utilizing AI tools, indicating widespread adoption across various development tasks.`
+    }
+    
+    return summary
+  }
+
+  const generateJiraContentSummary = (responses: string[], freq: {[key: string]: number}) => {
+    const topResponses = responses.slice(0, 6)
+    let summary = "**Common Jira Enhancement Requests:**\n\n"
+    
+    // Categorize improvement areas
+    const uiResponses = topResponses.filter(r => 
+      r.toLowerCase().includes('interface') || r.toLowerCase().includes('ui') || r.toLowerCase().includes('user')
+    )
+    const performanceResponses = topResponses.filter(r => 
+      r.toLowerCase().includes('slow') || r.toLowerCase().includes('speed') || r.toLowerCase().includes('performance')
+    )
+    const featureResponses = topResponses.filter(r => 
+      r.toLowerCase().includes('feature') || r.toLowerCase().includes('function') || r.toLowerCase().includes('add')
+    )
+    
+    if (uiResponses.length > 0) {
+      summary += `• **User Interface Improvements:** "${uiResponses[0]}"\n\n`
+    }
+    
+    if (performanceResponses.length > 0) {
+      summary += `• **Performance Concerns:** "${performanceResponses[0]}"\n\n`
+    }
+    
+    if (featureResponses.length > 0) {
+      summary += `• **Feature Requests:** "${featureResponses[0]}"\n\n`
+    }
+    
+    // Add top suggestions
+    topResponses.slice(0, 3).forEach((response, index) => {
+      if (response.length > 10) {
+        summary += `• **Suggestion ${index + 1}:** "${response}"\n\n`
+      }
+    })
+    
+    return summary
+  }
+
+  const generateActionItemContentSummary = (responses: string[], freq: {[key: string]: number}) => {
+    const topResponses = responses.slice(0, 5)
+    let summary = "**Key Action Items & Resolutions:**\n\n"
+    
+    topResponses.forEach((response, index) => {
+      if (response.length > 15) {
+        summary += `• **Action Item ${index + 1}:** "${response}"\n\n`
+      }
+    })
+    
+    const commonPatterns = responses.filter(r => r.toLowerCase().includes('process') || r.toLowerCase().includes('communication')).length
+    if (commonPatterns > 0) {
+      summary += `• **Common Theme:** ${commonPatterns} action items relate to process improvements and better communication protocols.`
+    }
+    
+    return summary
+  }
+
+  const generateImprovementContentSummary = (responses: string[], freq: {[key: string]: number}) => {
+    const topResponses = responses.slice(0, 6)
+    let summary = "**Top Improvement Suggestions:**\n\n"
+    
+    topResponses.forEach((response, index) => {
+      if (response.length > 10) {
+        summary += `• "${response}"\n\n`
+      }
+    })
+    
+    return summary
+  }
+
+  const generateEngagementContentSummary = (responses: string[], freq: {[key: string]: number}) => {
+    const topResponses = responses.slice(0, 6)
+    let summary = "**Team Engagement Areas Outside Release Deliverables:**\n\n"
+    
+    topResponses.forEach((response, index) => {
+      if (response.length > 10) {
+        summary += `• "${response}"\n\n`
+      }
+    })
+    
+    return summary
+  }
+
+  const generateGeneralContentSummary = (responses: string[], freq: {[key: string]: number}) => {
+    const topResponses = responses.slice(0, 6)
+    let summary = "**Key Feedback & Insights:**\n\n"
+    
+    topResponses.forEach((response, index) => {
+      if (response.length > 10) {
+        summary += `• "${response}"\n\n`
+      }
+    })
     
     return summary
   }

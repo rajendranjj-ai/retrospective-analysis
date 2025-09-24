@@ -267,12 +267,34 @@ export default function Dashboard() {
     return tableQuestions.some(tableQ => question.trim() === tableQ.trim())
   }
 
-  // Extract unique answers from trend data for table display (August 2025 only)
+  // Extract unique answers from trend data for table display
   const getUniqueAnswersFromTrends = (trendsData: TrendsData, questionText: string) => {
     const uniqueAnswers: Array<{answer: string, months: string[], totalResponses: number}> = []
     
-    // Only process August 2025 data
-    const targetMonth = 'August 2025'
+    // Special handling for Cursor tasks question - always use latest month
+    const isCursorTasksQuestion = questionText.includes('What types of tasks do you use Cursor, Copilot for')
+    
+    let targetMonth: string
+    if (isCursorTasksQuestion) {
+      // For Cursor tasks question, use the latest available month
+      const availableMonths = Object.keys(trendsData.trends).sort((a, b) => {
+        const extractMonthOrder = (monthName: string) => {
+          const [monthStr, yearStr] = monthName.split(' ')
+          const year = parseInt(yearStr)
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                             'July', 'August', 'September', 'October', 'November', 'December']
+          const month = monthNames.indexOf(monthStr) + 1
+          return year * 100 + month
+        }
+        return extractMonthOrder(b) - extractMonthOrder(a) // Sort descending to get latest first
+      })
+      targetMonth = availableMonths[0] // Get the latest month
+      console.log(`🔄 Using latest month '${targetMonth}' for Cursor tasks question`)
+    } else {
+      // For all other questions, use August 2025
+      targetMonth = 'August 2025'
+    }
+    
     const monthData = trendsData.trends[targetMonth]
     
     if (!monthData) {

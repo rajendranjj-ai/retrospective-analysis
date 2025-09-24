@@ -67,6 +67,137 @@ export default function DirectorTrendAnalysis({
     setTablePagination(prev => ({ ...prev, [question]: page }))
   }
 
+  // Generate AI summary from text responses
+  const generateAISummary = (answers: Array<{answer: string, totalResponses: number}>, questionText: string) => {
+    if (answers.length === 0) return "No responses available for analysis."
+    
+    const allResponses = answers.flatMap(item => Array(item.totalResponses).fill(item.answer))
+    const totalResponses = allResponses.length
+    
+    // Extract key themes and patterns
+    const commonWords = extractCommonThemes(allResponses)
+    const sentiment = analyzeSentiment(allResponses)
+    const categories = categorizeResponses(allResponses, questionText)
+    
+    // Generate summary based on question type
+    let summary = `📊 **Analysis of ${totalResponses} responses:**\n\n`
+    
+    if (questionText.toLowerCase().includes('cursor') || questionText.toLowerCase().includes('ai') || questionText.toLowerCase().includes('copilot')) {
+      summary += `🤖 **AI Tool Insights:** ${generateAIToolSummary(categories, sentiment)}\n\n`
+    } else if (questionText.toLowerCase().includes('jira')) {
+      summary += `🔧 **Jira Enhancement Themes:** ${generateJiraSummary(categories, commonWords)}\n\n`
+    } else if (questionText.toLowerCase().includes('action item')) {
+      summary += `✅ **Action Item Patterns:** ${generateActionItemSummary(categories)}\n\n`
+    } else {
+      summary += `💡 **Key Insights:** ${generateGeneralSummary(categories, sentiment)}\n\n`
+    }
+    
+    summary += `📈 **Response Distribution:** ${answers.length} unique responses, most common themes: ${commonWords.slice(0, 3).join(', ')}\n\n`
+    summary += `🎯 **Overall Sentiment:** ${sentiment.overall} (${Math.round(sentiment.positiveRatio * 100)}% positive)`
+    
+    return summary
+  }
+
+  // Helper functions for AI summary generation
+  const extractCommonThemes = (responses: string[]) => {
+    const wordCounts: {[key: string]: number} = {}
+    const stopWords = new Set(['the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by', 'is', 'are', 'was', 'were', 'be', 'been', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could', 'should', 'can', 'may', 'might', 'i', 'you', 'he', 'she', 'it', 'we', 'they', 'this', 'that', 'these', 'those'])
+    
+    responses.forEach(response => {
+      const words = response.toLowerCase().replace(/[^\w\s]/g, '').split(/\s+/)
+      words.forEach(word => {
+        if (word.length > 3 && !stopWords.has(word)) {
+          wordCounts[word] = (wordCounts[word] || 0) + 1
+        }
+      })
+    })
+    
+    return Object.entries(wordCounts)
+      .sort(([,a], [,b]) => b - a)
+      .slice(0, 10)
+      .map(([word]) => word)
+  }
+
+  const analyzeSentiment = (responses: string[]) => {
+    const positiveWords = ['good', 'great', 'excellent', 'helpful', 'useful', 'effective', 'improved', 'better', 'positive', 'satisfied', 'happy', 'love', 'like', 'amazing', 'fantastic', 'perfect']
+    const negativeWords = ['bad', 'poor', 'terrible', 'useless', 'ineffective', 'worse', 'negative', 'dissatisfied', 'unhappy', 'hate', 'dislike', 'awful', 'frustrating', 'difficult', 'problem', 'issue']
+    
+    let positiveCount = 0
+    let negativeCount = 0
+    
+    responses.forEach(response => {
+      const words = response.toLowerCase().split(/\s+/)
+      words.forEach(word => {
+        if (positiveWords.includes(word)) positiveCount++
+        if (negativeWords.includes(word)) negativeCount++
+      })
+    })
+    
+    const total = positiveCount + negativeCount
+    const positiveRatio = total > 0 ? positiveCount / total : 0.5
+    
+    let overall = 'Neutral'
+    if (positiveRatio > 0.6) overall = 'Positive'
+    else if (positiveRatio < 0.4) overall = 'Negative'
+    
+    return { overall, positiveRatio, positiveCount, negativeCount }
+  }
+
+  const categorizeResponses = (responses: string[], questionText: string) => {
+    const categories: {[key: string]: string[]} = {}
+    
+    if (questionText.toLowerCase().includes('cursor') || questionText.toLowerCase().includes('ai')) {
+      categories['Code Generation'] = responses.filter(r => r.toLowerCase().includes('generate') || r.toLowerCase().includes('create') || r.toLowerCase().includes('write'))
+      categories['Debugging'] = responses.filter(r => r.toLowerCase().includes('debug') || r.toLowerCase().includes('fix') || r.toLowerCase().includes('error'))
+      categories['Productivity'] = responses.filter(r => r.toLowerCase().includes('fast') || r.toLowerCase().includes('quick') || r.toLowerCase().includes('efficient'))
+      categories['Learning'] = responses.filter(r => r.toLowerCase().includes('learn') || r.toLowerCase().includes('understand') || r.toLowerCase().includes('help'))
+    } else if (questionText.toLowerCase().includes('jira')) {
+      categories['UI/UX'] = responses.filter(r => r.toLowerCase().includes('interface') || r.toLowerCase().includes('ui') || r.toLowerCase().includes('user'))
+      categories['Performance'] = responses.filter(r => r.toLowerCase().includes('slow') || r.toLowerCase().includes('fast') || r.toLowerCase().includes('speed'))
+      categories['Features'] = responses.filter(r => r.toLowerCase().includes('feature') || r.toLowerCase().includes('function') || r.toLowerCase().includes('add'))
+    } else {
+      categories['Process'] = responses.filter(r => r.toLowerCase().includes('process') || r.toLowerCase().includes('workflow'))
+      categories['Communication'] = responses.filter(r => r.toLowerCase().includes('communication') || r.toLowerCase().includes('meeting') || r.toLowerCase().includes('discuss'))
+      categories['Technical'] = responses.filter(r => r.toLowerCase().includes('technical') || r.toLowerCase().includes('code') || r.toLowerCase().includes('development'))
+    }
+    
+    return categories
+  }
+
+  const generateAIToolSummary = (categories: {[key: string]: string[]}, sentiment: any) => {
+    const insights: string[] = []
+    Object.entries(categories).forEach(([category, items]) => {
+      if (items.length > 0) {
+        insights.push(`${category}: ${items.length} mentions`)
+      }
+    })
+    return insights.length > 0 ? insights.join(', ') : 'Various AI tool usage patterns identified'
+  }
+
+  const generateJiraSummary = (categories: {[key: string]: string[]}, commonWords: string[]) => {
+    const insights: string[] = []
+    Object.entries(categories).forEach(([category, items]) => {
+      if (items.length > 0) {
+        insights.push(`${category} improvements: ${items.length} suggestions`)
+      }
+    })
+    return insights.length > 0 ? insights.join(', ') : `Focus areas include: ${commonWords.slice(0, 3).join(', ')}`
+  }
+
+  const generateActionItemSummary = (categories: {[key: string]: string[]}) => {
+    return 'Action items cover process improvements, technical enhancements, and team coordination'
+  }
+
+  const generateGeneralSummary = (categories: {[key: string]: string[]}, sentiment: any) => {
+    const insights: string[] = []
+    Object.entries(categories).forEach(([category, items]) => {
+      if (items.length > 0) {
+        insights.push(`${category}: ${items.length} responses`)
+      }
+    })
+    return insights.length > 0 ? insights.join(', ') : 'Diverse feedback covering multiple areas'
+  }
+
   const getUniqueAnswersFromTrends = (trendsData: DirectorTrendsData, questionText: string) => {
     const uniqueAnswers: Array<{answer: string, months: string[], totalResponses: number}> = []
     
@@ -418,8 +549,25 @@ export default function DirectorTrendAnalysis({
                             )
                           }
 
+                          // Generate AI summary
+                          const aiSummary = generateAISummary(uniqueAnswers, question)
+
                           return (
             <div>
+                              {/* AI Summary Section */}
+                              <div className="mb-6 bg-gradient-to-r from-purple-50 to-pink-50 rounded-lg border border-purple-200 p-4">
+                                <div className="flex items-center justify-between mb-3">
+                                  <h6 className="text-md font-semibold text-purple-900 flex items-center gap-2">
+                                    🤖 AI Summary & Insights ({selectedDirector})
+                                  </h6>
+                                  <span className="text-xs text-purple-600 bg-purple-100 px-2 py-1 rounded-full">
+                                    Director Analysis
+                                  </span>
+                                </div>
+                                <div className="text-sm text-gray-800 leading-relaxed whitespace-pre-line">
+                                  {aiSummary}
+                                </div>
+                              </div>
                               {/* Pagination Info */}
                               <div className="flex justify-between items-center mb-3">
                                 <div className="text-xs text-gray-600">

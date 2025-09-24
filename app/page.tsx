@@ -271,29 +271,22 @@ export default function Dashboard() {
   const getUniqueAnswersFromTrends = (trendsData: TrendsData, questionText: string) => {
     const uniqueAnswers: Array<{answer: string, months: string[], totalResponses: number}> = []
     
-    // Special handling for Cursor tasks question - always use latest month
-    const isCursorTasksQuestion = questionText.includes('What types of tasks do you use Cursor, Copilot for')
+    // For all table questions (text-based questions), use the latest available month
+    // Only trend graph questions show data across all months
+    const availableMonths = Object.keys(trendsData.trends).sort((a, b) => {
+      const extractMonthOrder = (monthName: string) => {
+        const [monthStr, yearStr] = monthName.split(' ')
+        const year = parseInt(yearStr)
+        const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
+                           'July', 'August', 'September', 'October', 'November', 'December']
+        const month = monthNames.indexOf(monthStr) + 1
+        return year * 100 + month
+      }
+      return extractMonthOrder(b) - extractMonthOrder(a) // Sort descending to get latest first
+    })
     
-    let targetMonth: string
-    if (isCursorTasksQuestion) {
-      // For Cursor tasks question, use the latest available month
-      const availableMonths = Object.keys(trendsData.trends).sort((a, b) => {
-        const extractMonthOrder = (monthName: string) => {
-          const [monthStr, yearStr] = monthName.split(' ')
-          const year = parseInt(yearStr)
-          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 
-                             'July', 'August', 'September', 'October', 'November', 'December']
-          const month = monthNames.indexOf(monthStr) + 1
-          return year * 100 + month
-        }
-        return extractMonthOrder(b) - extractMonthOrder(a) // Sort descending to get latest first
-      })
-      targetMonth = availableMonths[0] // Get the latest month
-      console.log(`🔄 Using latest month '${targetMonth}' for Cursor tasks question`)
-    } else {
-      // For all other questions, use August 2025
-      targetMonth = 'August 2025'
-    }
+    const targetMonth = availableMonths[0] // Get the latest month for all table questions
+    console.log(`🔄 Using latest month '${targetMonth}' for table question: ${questionText.substring(0, 50)}...`)
     
     const monthData = trendsData.trends[targetMonth]
     
@@ -1027,7 +1020,7 @@ export default function Dashboard() {
                                 })()}
                               </h5>
                               <p className="text-xs text-gray-600">
-                                Showing unique responses from August 2025 release
+                                Showing unique responses from latest release
                               </p>
                             </div>
                             {(() => {
@@ -1052,7 +1045,7 @@ export default function Dashboard() {
                                   {/* Pagination Info */}
                                   <div className="flex justify-between items-center mb-3">
                                     <div className="text-xs text-gray-600">
-                                      Showing {startIndex + 1}-{Math.min(endIndex, uniqueAnswers.length)} of {uniqueAnswers.length} responses from August 2025
+                                      Showing {startIndex + 1}-{Math.min(endIndex, uniqueAnswers.length)} of {uniqueAnswers.length} responses from latest release
                                       <span className="ml-2 text-blue-600">(Sorted by answer length)</span>
                                     </div>
                                     <div className="text-xs text-gray-500">

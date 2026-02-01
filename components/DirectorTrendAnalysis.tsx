@@ -48,11 +48,12 @@ export default function DirectorTrendAnalysis({
       "Do you have any suggestion for improving and streamlining the release further?",
       "Any Suggestions for Jira enhancements?",
       "What was your engagement area during this release while not associated with the release deliverables?",
-      "Share an interesting use case where Cursor helped you",
-      "Any feedback/suggestion on Cursor Usage ?",
-      "Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.",
-      "What types of tasks do you use Cursor, Copilot for ?",
-      "What types of tasks do you use Cursor, Copilot for ? (select all that apply)"
+      "There is a significant increase in the AI usage with Cursor and code generation which is not getting directly translated into Sprint Velocity / Productivity gains. What is the reason you think ?",
+      "Do you need any support to improve the cursor adoption ?",
+      "Any interesting use case / problems you have solved using Cursor ?",
+      "Give the reason for your choice in not making 75 or more requests on an average",
+      "Can you elaborate the issue in few words or any Suggestion to solve it with respect to Sprint Velocity / Productivity gains",
+      "What other features do you want to have in SSP?"
     ]
     return tableQuestions.some(tableQ => question.trim() === tableQ.trim())
   }

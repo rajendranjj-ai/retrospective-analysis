@@ -254,10 +254,13 @@ function analyzeQuestionTrends(data, questionColumn) {
   
   // Questions that should return raw responses instead of percentages
   const textQuestions = [
-    'Share an interesting use case where Cursor helped you',
-    'Any feedback/suggestion on Cursor Usage ?',
-    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.',
-    'What was your engagement area during this release while not associated with the release deliverables?'
+    'What was your engagement area during this release while not associated with the release deliverables?',
+    'There is a significant increase in the AI usage with Cursor and code generation which is not getting directly translated into Sprint Velocity / Productivity gains. What is the reason you think ?',
+    'Do you need any support to improve the cursor adoption ?',
+    'Any interesting use case / problems you have solved using Cursor ?',
+    'Give the reason for your choice in not making 75 or more requests on an average',
+    'Can you elaborate the issue in few words or any Suggestion to solve it with respect to Sprint Velocity / Productivity gains',
+    'What other features do you want to have in SSP?'
   ];
   
   // Check if this is a text question
@@ -1323,10 +1326,13 @@ function analyzeDirectorQuestionTrends(data, questionColumn, targetDirector) {
   
   // Questions that should return raw responses instead of percentages
   const textQuestions = [
-    'Share an interesting use case where Cursor helped you',
-    'Any feedback/suggestion on Cursor Usage ?',
-    'Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.',
-    'What was your engagement area during this release while not associated with the release deliverables?'
+    'What was your engagement area during this release while not associated with the release deliverables?',
+    'There is a significant increase in the AI usage with Cursor and code generation which is not getting directly translated into Sprint Velocity / Productivity gains. What is the reason you think ?',
+    'Do you need any support to improve the cursor adoption ?',
+    'Any interesting use case / problems you have solved using Cursor ?',
+    'Give the reason for your choice in not making 75 or more requests on an average',
+    'Can you elaborate the issue in few words or any Suggestion to solve it with respect to Sprint Velocity / Productivity gains',
+    'What other features do you want to have in SSP?'
   ];
   
   // Check if this is a text question

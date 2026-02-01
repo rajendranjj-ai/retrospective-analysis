@@ -1,10 +1,11 @@
 Section Name: Cursor & AI Tools
-Would you prefer Cursor as your AI code companion ?
-What types of tasks do you use Cursor, Copilot for ?
 How much Productivity boost have you experienced with Cursor ?
-Share an interesting use case where Cursor helped you
-Any feedback/suggestion on Cursor Usage ?
-Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.
+There is a significant increase in the AI usage with Cursor and code generation which is not getting directly translated into Sprint Velocity / Productivity gains. What is the reason you think ?
+Do you need any support to improve the cursor adoption ?
+Are you making 75 or more requests on an average a day ? If not, what is the reason ?
+Any interesting use case / problems you have solved using Cursor ?
+Give the reason for your choice in not making 75 or more requests on an average
+Can you elaborate the issue in few words or any Suggestion to solve it with respect to Sprint Velocity / Productivity gains
 
 Section Name: Sprint Retrospective
 Sprint Retrospective Effectiveness
@@ -63,3 +64,8 @@ Applicable only for pure DEV or QA Resources - What percent of your available ca
 Section Name: Role & Responsibilities
 What's your primary role?
 What's your primary role for the release?
+
+Section Name: DevOps SSP
+Are you accessing Self Service Portal
+Is SSP useful for you ?
+What other features do you want to have in SSP?

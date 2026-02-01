@@ -63,6 +63,10 @@ export default function Dashboard() {
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null)
   const [directorData, setDirectorData] = useState<Array<{director: string, count: number, totalCount?: number, participationRate?: number}>>([])
   const [directorLoading, setDirectorLoading] = useState(false)
+  
+  // Navigation dropdowns state
+  const [selectedSection, setSelectedSection] = useState<string>('')
+  const [selectedQuestion, setSelectedQuestion] = useState<string>('')
 
   useEffect(() => {
     console.log('useEffect triggered, starting data fetch...')
@@ -143,6 +147,11 @@ export default function Dashboard() {
       // Set questions and sections data
       setOrderedQuestions(questionsData.questions || [])
       setSections(questionsData.sections || {})
+      
+      // Auto-select first section if available
+      if (questionsData.sections && Object.keys(questionsData.sections).length > 0 && !selectedSection) {
+        setSelectedSection(Object.keys(questionsData.sections)[0])
+      }
       
       // Start loading trends for all questions (don't await to not block main loading)
       if (questionsData.sections && Object.keys(questionsData.sections).length > 0) {
@@ -256,11 +265,12 @@ export default function Dashboard() {
       "Do you have any suggestion for improving and streamlining the release further?",
       "Any Suggestions for Jira enhancements?",
       "What was your engagement area during this release while not associated with the release deliverables?",
-      "Share an interesting use case where Cursor helped you",
-      "Any feedback/suggestion on Cursor Usage ?",
-      "Are you getting all the support for AI adoption from various forums (Slack / email / Lunch n Learn series) ? Please highlight where the support can be further improved.",
-      "What types of tasks do you use Cursor, Copilot for ?",
-      "What types of tasks do you use Cursor, Copilot for ? (select all that apply)"
+      "There is a significant increase in the AI usage with Cursor and code generation which is not getting directly translated into Sprint Velocity / Productivity gains. What is the reason you think ?",
+      "Do you need any support to improve the cursor adoption ?",
+      "Any interesting use case / problems you have solved using Cursor ?",
+      "Give the reason for your choice in not making 75 or more requests on an average",
+      "Can you elaborate the issue in few words or any Suggestion to solve it with respect to Sprint Velocity / Productivity gains",
+      "What other features do you want to have in SSP?"
     ]
     return tableQuestions.some(tableQ => question.trim() === tableQ.trim())
   }
@@ -1166,6 +1176,78 @@ export default function Dashboard() {
 
         {/* Comprehensive Question Analysis */}
         <div className="space-y-8">
+          {/* Section and Question Navigation Dropdowns */}
+          {Object.keys(sections).length > 0 && (
+            <div className="bg-white rounded-lg shadow-sm p-6 mb-6">
+              <div className="flex items-center gap-4">
+                <div className="flex-1">
+                  <label htmlFor="section-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    Navigate to Section
+                  </label>
+                  <select
+                    id="section-select"
+                    value={selectedSection}
+                    onChange={(e) => {
+                      setSelectedSection(e.target.value)
+                      setSelectedQuestion('') // Reset question when section changes
+                      if (e.target.value) {
+                        // Scroll to the selected section
+                        const sectionId = `section-${e.target.value.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`
+                        const element = document.getElementById(sectionId)
+                        if (element) {
+                          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white"
+                  >
+                    <option value="">Select a section...</option>
+                    {Object.keys(sections).map((section) => (
+                      <option key={section} value={section}>
+                        {section}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                <div className="flex-1">
+                  <label htmlFor="question-select" className="block text-sm font-medium text-gray-700 mb-2">
+                    Navigate to Question
+                  </label>
+                  <select
+                    id="question-select"
+                    value={selectedQuestion}
+                    onChange={(e) => {
+                      setSelectedQuestion(e.target.value)
+                      if (e.target.value) {
+                        // Scroll to the selected question
+                        const questionId = `question-${e.target.value.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`
+                        const element = document.getElementById(questionId)
+                        if (element) {
+                          element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                          // Highlight the question briefly
+                          element.classList.add('ring-4', 'ring-blue-300', 'ring-offset-2')
+                          setTimeout(() => {
+                            element.classList.remove('ring-4', 'ring-blue-300', 'ring-offset-2')
+                          }, 2000)
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500 bg-white"
+                    disabled={!selectedSection}
+                  >
+                    <option value="">Select a question...</option>
+                    {selectedSection && sections[selectedSection]?.map((question, index) => (
+                      <option key={question} value={question}>
+                        Q{index + 1}. {question.length > 80 ? `${question.substring(0, 80)}...` : question}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <div className="bg-white rounded-lg shadow-sm p-6">
           <div className="flex justify-between items-center mb-4">
               <div>
@@ -1229,8 +1311,10 @@ export default function Dashboard() {
           </div>
 
           {/* Render all sections and their questions */}
-          {Object.entries(sections).map(([sectionName, sectionQuestions]) => (
-            <div key={sectionName} className="bg-white rounded-lg shadow-sm">
+          {Object.entries(sections).map(([sectionName, sectionQuestions]) => {
+            const sectionId = `section-${sectionName.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`
+            return (
+            <div key={sectionName} id={sectionId} className="bg-white rounded-lg shadow-sm scroll-mt-24">
               <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-gray-200">
                 <h3 className="text-xl font-semibold text-gray-900">
                   📋 {sectionName}
@@ -1244,9 +1328,10 @@ export default function Dashboard() {
                 {sectionQuestions.map((question, index) => {
                   const questionTrends = allTrends[question]
                   const isLoaded = loadedQuestions.has(question)
+                  const questionId = `question-${question.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase()}`
                   
                   return (
-                    <div key={question} className="border-l-4 border-blue-200 pl-6 py-4">
+                    <div key={question} id={questionId} className="border-l-4 border-blue-200 pl-6 py-4 scroll-mt-20">
                       {/* Question Header */}
                       <div className="mb-4">
                         <div className="flex items-start justify-between">
@@ -1505,7 +1590,8 @@ export default function Dashboard() {
                 })}
               </div>
             </div>
-          ))}
+            )
+          })}
         </div>
 
 
